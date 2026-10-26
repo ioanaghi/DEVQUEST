@@ -1801,6 +1801,12 @@ fieldset {
 /* The IDE is a focused in-game workstation with readable text and code. */
 .modal-workspace {
   width: min(1210px, calc(100vw - 72px));
+  border: 2px solid #b9bf82;
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 0 2px #122f2c,
+    0 4px 0 #102a28,
+    0 18px 70px #091f20a8;
 }
 .workspace-meta {
   display: flex;
@@ -1813,7 +1819,9 @@ fieldset {
     monospace;
   letter-spacing: 1px;
   color: #a8c19a;
-  background: #15382f66;
+  background-color: #15382f;
+  background-image: radial-gradient(#d7dea322 0.8px, transparent 0.8px);
+  background-size: 5px 5px;
   border-bottom: 1px solid #85a26733;
 }
 .workspace-meta .live-dot {
@@ -1829,6 +1837,10 @@ fieldset {
 .workspace-grid {
   display: grid;
   grid-template-columns: 310px minmax(0, 1fr);
+  background-image:
+    linear-gradient(#e3ddba0c 1px, transparent 1px),
+    linear-gradient(90deg, #e3ddba0c 1px, transparent 1px);
+  background-size: 16px 16px;
 }
 .task-pane {
   border-right: 1px solid #86a06a33;
@@ -2128,6 +2140,27 @@ fieldset {
 .results-head .eyebrow {
   font-size: 8px;
   color: #99b17d;
+}
+.modal-workspace .ticket-tag,
+.modal-workspace .task-objective,
+.modal-workspace .hint-button,
+.modal-workspace .run-toolbar .button,
+.modal-workspace .test-list > div,
+.modal-workspace .review-feedback,
+.modal-workspace .query-table {
+  border-radius: 2px;
+}
+.modal-workspace .run-toolbar .button {
+  box-shadow: 0 2px 0 #102a28;
+}
+.modal-workspace .test-list > div {
+  box-shadow: 2px 2px 0 #102a2888;
+}
+.modal-workspace .code-editor {
+  background-image:
+    linear-gradient(#d7dec70b 1px, transparent 1px),
+    linear-gradient(90deg, #d7dec70b 1px, transparent 1px);
+  background-size: 16px 16px;
 }
 .result-pass,
 .result-fail {
@@ -4375,4 +4408,335 @@ button {
 .modal::backdrop {
   animation: none !important;
   opacity: var(--overlay-visibility, 1);
+}
+/* PixelByte's old desktop: a warm work ticket beside a deep green CRT. */
+.modal-workspace {
+  border: 7px solid #796345;
+  border-radius: 5px;
+  color: #315240;
+  background: #273e33;
+  box-shadow:
+    inset 0 0 0 2px #ead69e,
+    inset 0 0 0 5px #4d573e,
+    0 5px 0 #483b30,
+    0 22px 80px #101d19a8;
+}
+.modal-workspace .modal-top {
+  min-height: 75px;
+  padding: 17px 25px 16px;
+  background:
+    linear-gradient(180deg, transparent 0 88%, #8d704b 88% 100%),
+    repeating-linear-gradient(90deg, #d7c08b 0 19px, #ceb47b 19px 38px);
+  border-bottom: 0;
+}
+.modal-workspace .modal-top .eyebrow {
+  color: #566949;
+  font-size: 7px;
+  letter-spacing: 1.8px;
+}
+.modal-workspace .modal-top h2 {
+  margin-top: 4px;
+  color: #2f4b3d;
+  font-size: 22px;
+  letter-spacing: -0.3px;
+}
+.modal-workspace .close-button {
+  width: 29px;
+  height: 29px;
+  border: 2px solid #9b8056;
+  border-radius: 2px;
+  color: #526444;
+  background: #eee0b8;
+  box-shadow: 0 2px 0 #886c48;
+}
+.workspace-meta {
+  position: relative;
+  min-height: 36px;
+  padding: 9px 17px;
+  color: #c8d3a6;
+  background-color: #345743;
+  background-image: radial-gradient(#d6dcad33 1px, transparent 1.2px);
+  background-size: 6px 6px;
+  border-bottom: 3px solid #223f34;
+  box-shadow: inset 0 1px #a0b87877;
+}
+.workspace-meta > span:last-child {
+  color: #e3d39d;
+}
+.workspace-grid {
+  background: #24392f;
+  background-image: none;
+}
+.task-pane {
+  color: #3c5742;
+  background-color: #eee2c1;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 27px, #667b5420 27px 28px),
+    linear-gradient(90deg, #d9c69e 0 4px, transparent 4px 100%);
+  border-right: 5px solid #8c7049;
+  box-shadow: inset -2px 0 #dfca92;
+}
+.workspace-tabs {
+  gap: 17px;
+  height: 47px;
+  padding-inline: 19px;
+  border-bottom: 2px solid #d0bb8e;
+}
+.workspace-tabs > button {
+  color: #6d7e60;
+  font-size: 10px;
+}
+.workspace-tabs > button.selected {
+  color: #38583f;
+}
+.workspace-tabs > button.selected:after {
+  height: 3px;
+  background: #9b704c;
+}
+.task-content {
+  padding: 19px 21px 24px;
+}
+.task-content .ticket-tag {
+  padding: 5px 8px;
+  color: #574e6c;
+  background: #d8cbe0;
+  border: 1px solid #998ca5;
+  box-shadow: 2px 2px 0 #9a8d7299;
+}
+.task-content .ticket-tag.green {
+  color: #3f6048;
+  background: #d5ddbd;
+  border-color: #9da980;
+}
+.task-content h3 {
+  margin-top: 13px;
+  color: #34563f;
+  font-size: 21px;
+  line-height: 1.35;
+}
+.task-content > p {
+  color: #586b53;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.task-objective {
+  padding: 14px;
+  background: #dce1c4;
+  border: 2px solid #a9ad82;
+  border-radius: 3px;
+  box-shadow: 3px 3px 0 #a3947080;
+}
+.task-objective .eyebrow {
+  color: #6e794f;
+}
+.task-objective p {
+  color: #3e5c43;
+  font-size: 11px;
+  line-height: 1.75;
+}
+.mentor-note {
+  margin-top: 18px;
+  padding: 12px 10px;
+  background: #e4d5ae88;
+  border-left: 3px solid #9e8053;
+}
+.small-avatar {
+  width: 27px;
+  height: 27px;
+  color: #f0e2bf;
+  background: #587859;
+  border: 2px solid #80916a;
+  border-radius: 2px;
+  box-shadow: 2px 2px 0 #8b795d77;
+}
+.mentor-note strong {
+  color: #456348;
+}
+.mentor-note p {
+  color: #687b5b;
+  font-size: 10px;
+}
+.hints {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 2px dashed #aa9872;
+}
+.hints-head {
+  color: #526847;
+}
+.hints-head > span {
+  color: #827454;
+}
+.hint-button {
+  padding: 10px;
+  color: #526343;
+  background: #e3cc91;
+  border: 2px solid #a78757;
+  box-shadow: 0 3px 0 #8c704b;
+}
+.hint-button:hover {
+  background: #efdba8;
+}
+.hint-button:disabled {
+  color: #777b63;
+  background: #d8d1b2;
+  border-color: #aaa187;
+  box-shadow: none;
+}
+.hints > small {
+  color: #75805f;
+}
+.hint {
+  color: #4c6046;
+  background: #dce1c4;
+  border: 1px solid #a8ad81;
+  border-radius: 2px;
+}
+.hint > b {
+  color: #8f704c;
+}
+.editor-pane {
+  min-height: 0;
+  margin: 9px;
+  padding: 5px;
+  background: #827150;
+  border: 3px solid #aa9162;
+  box-shadow:
+    inset 0 0 0 2px #e0c88e,
+    2px 3px 0 #142e2a;
+}
+.editor-tabs {
+  flex: 0 0 39px;
+  height: 39px;
+  padding-inline: 14px;
+  background: #2c4c3b;
+  border: 0;
+  border-bottom: 2px solid #8f9b66;
+}
+.editor-tabs > span {
+  color: #e0d2a6;
+  font-size: 10px;
+}
+.editor-tabs .text-button {
+  color: #c8d29e;
+}
+.file-dot {
+  width: 8px;
+  height: 8px;
+  box-shadow: 1px 1px 0 #152f2a;
+}
+.saved-mark {
+  color: #c2d38b;
+}
+.code-editor {
+  flex: 0 0 260px;
+  height: 260px;
+  min-height: 190px;
+  background-color: #102c2a;
+  background-image:
+    repeating-linear-gradient(0deg, #ecedbd0a 0 1px, transparent 1px 4px),
+    linear-gradient(#d7dec710 1px, transparent 1px),
+    linear-gradient(90deg, #d7dec710 1px, transparent 1px);
+  background-size:
+    auto,
+    16px 16px,
+    16px 16px;
+  border: 2px solid #45654f;
+  box-shadow: inset 0 0 24px #071e1b88;
+}
+.code-surface textarea {
+  caret-color: #f3d789;
+}
+.editor-status {
+  flex: 0 0 auto;
+  padding: 8px 13px;
+  color: #cad3a5;
+  background: #315340;
+  border-top: 1px solid #77905e;
+}
+.editor-status .muted {
+  color: #b7c59d;
+}
+.run-toolbar {
+  flex: 0 0 auto;
+  min-height: 54px;
+  padding: 9px 12px;
+  background: #253f33;
+  border-bottom: 2px solid #6f7952;
+}
+.run-toolbar > span {
+  color: #c3cba3;
+}
+.run-toolbar .button-primary {
+  border: 2px solid #f0dcaa;
+  box-shadow:
+    inset 0 -2px #bd9e62,
+    0 3px 0 #302f27;
+}
+.run-toolbar .button-secondary {
+  background: #496b50;
+  border: 2px solid #839268;
+  box-shadow: 0 3px 0 #202f29;
+}
+.results-pane {
+  min-height: 150px;
+  padding: 16px 14px;
+  background: #16312e;
+  border-top: 1px solid #637d57;
+}
+.results-head .eyebrow {
+  color: #d8c88f;
+}
+.result-pass,
+.test-pass {
+  color: #cfe0a5;
+}
+.test-list > div {
+  padding: 9px 11px;
+  background: #dbe2c2;
+  border: 1px solid #adbb8f;
+  border-radius: 2px;
+  color: #3e5943;
+  box-shadow:
+    inset 0 1px #f8f1d6,
+    2px 2px 0 #0b211e;
+}
+.test-list strong,
+.test-list code {
+  color: #3e5943;
+}
+.test-list .test-pass {
+  color: #577d49;
+}
+.review-feedback,
+.workspace-success {
+  color: #425940;
+  background: #e2dfb9;
+  border: 2px solid #a9a675;
+  box-shadow: 2px 2px 0 #0b211e;
+}
+.workspace-success strong {
+  color: #435c40;
+}
+.query-table th {
+  color: #e6dcad;
+  background: #355843;
+}
+.query-table td {
+  color: #405b43;
+  background: #e1e2c3;
+  border-color: #b8b58d;
+}
+@media (max-width: 760px) {
+  .modal-workspace {
+    border-width: 5px;
+  }
+  .editor-pane {
+    margin: 6px;
+    padding: 4px;
+  }
+  .task-pane {
+    border-right: 0;
+    border-bottom: 4px solid #8c7049;
+  }
 }

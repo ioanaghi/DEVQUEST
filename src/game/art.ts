@@ -407,20 +407,24 @@ function illustrationPatch(c: Context, x: number, y: number, w: number, h: numbe
 }
 // These regions follow the illustrated furniture and provide true sprite occlusion.
 const ART_FOREGROUND = [
-  [74, 56, 95, 62, 118],
-  [105, 100, 35, 34, 134],
-  [222, 104, 96, 64, 168],
-  [256, 149, 34, 43, 192],
-  [69, 195, 94, 59, 254],
-  [105, 239, 36, 45, 284],
-  [243, 230, 91, 60, 290],
-  [272, 281, 35, 39, 320],
-  [522, 68, 84, 63, 131],
-  [548, 115, 35, 43, 158],
-  [418, 145, 79, 61, 206],
-  [440, 194, 37, 37, 231],
-  [537, 231, 77, 57, 288],
-  [431, 275, 94, 48, 323],
+  // Desk tops already live in the painted background. Only re-layer their
+  // narrow front aprons and feet so players are never clipped by boxy crops.
+  [74, 104, 95, 14, 118],
+  [105, 126, 35, 8, 134],
+  [222, 151, 96, 17, 168],
+  // Only the feet of the chair sit in front of the player. The backrest stays
+  // in the painted background, leaving the standing avatar's face unobscured.
+  [256, 178, 34, 14, 192],
+  [69, 240, 94, 14, 254],
+  [105, 271, 36, 13, 284],
+  [243, 277, 91, 13, 290],
+  [272, 308, 35, 12, 320],
+  [522, 117, 84, 14, 131],
+  [548, 145, 35, 13, 158],
+  [418, 192, 79, 14, 206],
+  [440, 220, 37, 11, 231],
+  [537, 276, 77, 12, 288],
+  [431, 316, 94, 14, 323],
   [415, 354, 65, 26, 380],
   [17, 307, 79, 62, 369],
   [5, 268, 39, 61, 329],

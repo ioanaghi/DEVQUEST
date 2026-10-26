@@ -110,6 +110,19 @@ export function GameWorld(props: Props) {
       if (!p.paused || p.typing) worldTime += dt * 1000;
       const animationTime = reduced ? 7000 : worldTime;
       const { x, y } = player.current;
+      // Seat the avatar at the lilac workstation while the editor is open,
+      // instead of leaving them standing on top of the monitor.
+      const avatarX = p.typing ? 270 : x;
+      const avatarY = p.typing ? 200 : y;
+      const atDesk = [
+        [122, 125, 55],
+        [272, 168, 60],
+        [115, 250, 55],
+        [290, 294, 55],
+        [562, 135, 52],
+        [456, 207, 52],
+        [478, 305, 100],
+      ].some(([deskX, deskY, radius]) => Math.hypot(x - deskX, y - deskY) < radius);
       if (time - lastSave > 750) {
         p.onPosition({ x, y });
         lastSave = time;
@@ -197,7 +210,10 @@ export function GameWorld(props: Props) {
         },
         {
           depth: y,
-          draw: (c: CanvasRenderingContext2D) =>
+          draw: (c: CanvasRenderingContext2D) => {
+            // The workstation fills the scene while its overlay is open; hide
+            // the walking sprite so it never covers a monitor or chair.
+            if (p.typing) return;
             drawCharacter(
               c,
               x,
@@ -205,10 +221,11 @@ export function GameWorld(props: Props) {
               p.save.avatar,
               animationTime,
               moving,
-              direction,
-              time < p.celebration && !reduced ? 'celebration' : p.typing ? 'typing' : 'idle',
+              moving && !atDesk ? direction : 'down',
+              time < p.celebration && !reduced ? 'celebration' : 'idle',
               distance,
-            ),
+            );
+          },
         },
       ];
       [...furnitureLayers(animationTime, p.save.decoration), ...actors]
