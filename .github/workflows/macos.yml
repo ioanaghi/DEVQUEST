@@ -1,0 +1,33 @@
+name: macOS desktop
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  app:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Package native app with the official Node runtime
+        run: |
+          node_binary="$(command -v node)"
+          node_root="$(dirname "$(dirname "$node_binary")")"
+          export DEVQUEST_NODE_LICENSE="$node_root/LICENSE"
+          export DEVQUEST_NODE_BINARY="$node_binary"
+          npm run desktop:build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DEVQUEST-macos
+          path: |
+            release/*.zip
+            release/*.sha256
+          if-no-files-found: error
