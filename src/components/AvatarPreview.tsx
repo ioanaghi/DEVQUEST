@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { drawCharacter } from '../game/art';
 import type { Avatar } from '../types';
 import { cancelFrame, scheduleFrame } from '../game/clock';
+import { motionReduced } from '../lib/motion';
 export function AvatarPreview({
   avatar,
   size = 80,
@@ -18,7 +19,7 @@ export function AvatarPreview({
     let frame = 0;
     function draw(time: number) {
       c.clearRect(0, 0, 32, 36);
-      drawCharacter(c, 16, 30, avatar, time, false, 'down', animation);
+      drawCharacter(c, 16, 31, avatar, motionReduced() ? 7000 : time, false, 'down', animation);
       frame = scheduleFrame(draw);
     }
     draw(performance.now());

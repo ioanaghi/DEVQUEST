@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 — A warmer first day
+
+Introduced an original illustrated PixelByte office, with detailed materials, window light, foliage, and foreground occlusion matched to the walking map. Reworked character poses, footsteps, idle gestures, and optional synthesized sounds. Movement accelerates and brakes smoothly; Shift increases speed and the camera follows with a gentle lead.
+
+Polished the floating HUD, pause-screen desk scene, dialog transitions, button feedback, and result presentation. Dialogue reveals gradually with E to reveal or advance; its height stays stable. The code editor now highlights Java/SQL, synchronizes scrolling and line numbers, and supports Tab indentation. System Reduce Motion applies to ambient motion and transitions. Native animation timing has a background-window fallback, and essential text stays visible if WebKit pauses CSS animations. Existing saves remain compatible.
+
 ## 0.2.0 — An office to get lost in
 
 The office now fills the screen, with a compact floating HUD and game overlays for pause, quests, map, journal, skills, and inventory. The Mac app starts in native full screen and remembers later window-mode choices. Escape opens and closes game menus without leaving full screen. Added keyboard shortcuts, a native Save & quit action, and a larger dark workstation overlay.

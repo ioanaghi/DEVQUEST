@@ -8,13 +8,15 @@ DEVQUEST is a native **macOS `.app`** with a Swift/AppKit window, menus, and an 
 
 ## Play on Mac
 
-The desktop build produces `release/DEVQUEST.app` and `release/DEVQUEST-0.2.0-macos-arm64.zip` on Apple Silicon. Unzip the archive and drag **DEVQUEST.app** into Applications. Minimum supported OS: macOS 13.5. Intel builds require the corresponding x64 Node distribution and a matching build; the local artifact is Apple Silicon only.
+The desktop build produces `release/DEVQUEST.app` and `release/DEVQUEST-0.3.0-macos-arm64.zip` on Apple Silicon. Unzip the archive and drag **DEVQUEST.app** into Applications. Minimum supported OS: macOS 13.5. Intel builds require the corresponding x64 Node distribution and a matching build; the local artifact is Apple Silicon only.
 
 The development build is ad-hoc signed. Public distribution with normal Gatekeeper verification requires an Apple Developer ID signature and Apple notarization. No certificate or notarization is bundled into this repository.
 
 ## Game presentation
 
 The office fills the window and the Mac app starts in native full screen. A compact HUD tracks your developer and current quest. Escape opens the pause menu; Q opens quests, J the journal, K skills, I the backpack, and M the office map. All secondary screens appear as in-game pop-ups. Full screen can be changed in the pause menu or the native View menu. Existing saves remain compatible.
+
+Version 0.3 adds a detailed illustrated office, warmer lighting, smoother acceleration and camera movement, distance-based character animation, subtle ambient motion, and optional synthesized interface sounds. Menus ease in and out; dialogue reveals at a readable pace and can be skipped with E. The editor adds syntax highlighting, synchronized line numbers, and Tab indentation. System Reduce Motion is respected. [Art direction and asset provenance](docs/ART-DIRECTION.md) describe the visual work.
 
 ## Your first day
 
@@ -27,7 +29,7 @@ The office fills the window and the Mac app starts in native full screen. A comp
 - Use progressive hints, a small training lab, a skill tree, and your own developer journal.
 - Resume your saved code, progress, avatar, notes, and decoration after quitting and reopening.
 
-**Controls:** WASD or arrows to walk, E to interact, Escape to pause or close a pop-up, Command/Ctrl + Enter to run code. The quest button and office map provide equivalent interactions without movement. Native Edit menu shortcuts work in the editor.
+**Controls:** WASD or arrows to walk, hold Shift to move faster, E to interact, Escape to pause or close a pop-up, Command/Ctrl + Enter to run code. The quest button and office map provide equivalent interactions without movement. Native Edit menu shortcuts work in the editor.
 
 ## Develop
 
@@ -96,4 +98,4 @@ Export/import through **File → Export Progress / Import Progress** or the hand
 
 Only the first-day vertical slice is playable. The ten later curriculum chapters are marked **planned** in the journey screen. Accounts, cloud saves, multiplayer, a coin shop, and independent mastery challenges are future work.
 
-All game art is original, generated from code on a 16px grid. No reference-game assets are copied. React, Vite, TypeScript, Node.js, and Apple system frameworks retain their respective licenses; the embedded Node distribution includes its complete license notices.
+The office environment is an original AI-generated pixel-art bitmap made from a project-authored floor-plan reference. Character sprites, animations, lighting effects, icons, and the fallback environment are drawn in code. No reference-game assets are copied. See [asset provenance and the generation prompt](docs/ART-DIRECTION.md). React, Vite, TypeScript, Node.js, and Apple system frameworks retain their respective licenses; the embedded Node distribution includes its complete license notices.

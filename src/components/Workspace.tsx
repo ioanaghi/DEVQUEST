@@ -1,3 +1,4 @@
+import { CodeEditor } from './CodeEditor';
 import { useEffect, useRef, useState } from 'react';
 import { MISSIONS } from '../lib/content';
 import type { Mission, Result, Save } from '../types';
@@ -27,8 +28,6 @@ export function Workspace({ mission, save, runtime, update, onComplete, onNext, 
   const [submitted, setSubmitted] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const abort = useRef<AbortController | null>(null);
-  const editor = useRef<HTMLTextAreaElement>(null);
-  const lines = useRef<HTMLDivElement>(null);
   useEffect(() => () => abort.current?.abort(), []);
   async function run(submit: boolean) {
     if (busy) return;
@@ -202,42 +201,14 @@ export function Workspace({ mission, save, runtime, update, onComplete, onNext, 
               <button onClick={() => setConfirmReset(false)}>Keep my work</button>
             </div>
           )}
-          <div className="code-editor">
-            <div ref={lines} className="line-numbers" aria-hidden="true">
-              {code.split('\n').map((_, i) => (
-                <span key={i}>{i + 1}</span>
-              ))}
-            </div>
-            <textarea
-              ref={editor}
-              spellCheck={false}
-              autoCapitalize="off"
-              autoCorrect="off"
-              aria-label={`${config.language} code editor`}
-              value={code}
-              maxLength={mission === 'java' ? 4000 : 6000}
-              disabled={busy}
-              onChange={(e) => change(e.target.value)}
-              onScroll={(e) => {
-                if (lines.current) lines.current.scrollTop = e.currentTarget.scrollTop;
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Tab') {
-                  e.preventDefault();
-                  const start = e.currentTarget.selectionStart,
-                    end = e.currentTarget.selectionEnd;
-                  change(code.slice(0, start) + '    ' + code.slice(end));
-                  requestAnimationFrame(() =>
-                    editor.current?.setSelectionRange(start + 4, start + 4),
-                  );
-                }
-                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                  e.preventDefault();
-                  void run(false);
-                }
-              }}
-            />
-          </div>
+          <CodeEditor
+            code={code}
+            language={config.language}
+            disabled={busy}
+            maxLength={mission === 'java' ? 4000 : 6000}
+            onChange={change}
+            onRun={() => void run(false)}
+          />
           <div className="editor-status">
             <span>
               {config.language} <span className="muted">UTF-8</span>

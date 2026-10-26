@@ -114,7 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         for submenu in [appMenu, file, help] { for item in submenu.items where item.action == #selector(about) || item.action == #selector(exportProgress) || item.action == #selector(importProgress) || item.action == #selector(handbook) { item.target = self } }
     }
 
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options: [.applicationName: "DEVQUEST", .applicationVersion: "0.2.0 · First Day", .credits: NSAttributedString(string: "A cozy programming RPG by Ioana Ghinet.\nBuilt with Swift, WebKit, React, and SQLite.\nNo account. No AI answers. Your own curiosity.")]) }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options: [.applicationName: "DEVQUEST", .applicationVersion: "0.3.0 · First Day", .credits: NSAttributedString(string: "A cozy programming RPG by Ioana Ghinet.\nBuilt with Swift, WebKit, React, and SQLite.\nNo account. No AI answers. Your own curiosity.")]) }
     @objc func handbook() { webView.evaluateJavaScript("window.dispatchEvent(new Event('devquest:help'))", completionHandler: nil) }
     @objc func toggleFullScreen() { window.toggleFullScreen(nil) }
     func windowDidEnterFullScreen(_ notification: Notification) { UserDefaults.standard.set(true, forKey: "StartFullScreen"); publishFullScreen(true) }

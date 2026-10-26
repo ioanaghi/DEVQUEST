@@ -13,6 +13,8 @@
 - `chore/quality-and-docs`: contributor guidance, workflows, acceptance notes.
 - `release/0.1.0`: verified first-day desktop release.
 
+Presentation updates use `feature/immersive-game-design` (0.2) and `feature/game-feel-and-art-direction` (0.3), followed by their corresponding release branches. These branches record actual implementation work; they do not imply external reviews or hosted CI results.
+
 Feature branches merge into `develop` with merge commits. A release branch records final verification, merges into `main`, and then back into `develop`. Preserve the initial feature branches as a readable project history; future branches can be removed after merge.
 
 ## Daily development

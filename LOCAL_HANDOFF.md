@@ -2,16 +2,16 @@
 
 The application source is in `/Volumes/T7/DEVQUEST`.
 
-- Launch `release/DEVQUEST.app` directly, or unzip `release/DEVQUEST-0.2.0-macos-arm64.zip` and move it into Applications.
+- Launch `release/DEVQUEST.app` directly, or unzip `release/DEVQUEST-0.3.0-macos-arm64.zip` and move it into Applications.
 - This is an Apple Silicon build with local ad-hoc signing, not Apple notarization.
 - The running Mac may contain the synthetic `QA Developer` test save. Use Help → Start a fresh first day to start your own game. The distributable contains no player save.
 - Browser development progress can be exported from Help and imported into the desktop app from File → Import Progress.
 
 ## Repository
 
-The environment prevents writes to the workspace `.git` directory. The complete prepared repository, including branches and commits, is at `/private/tmp/devquest-repository`. `DEVQUEST-history.bundle` preserves those refs in this workspace for durable recovery.
+The workspace Git metadata is protected from agent writes. The prepared repository with feature, develop, release, and main branches is at `/private/tmp/devquest-repository`. `DEVQUEST-history.bundle` and `release/DEVQUEST-0.3.0-source-with-history.zip` preserve those refs for durable recovery.
 
-No GitHub publication is claimed without a successful push and remote verification. Shell network access cannot currently resolve GitHub, and the GitHub integration has not been connected.
+The prepared release includes the existing workspace `design` history (`0cd4355`, descended from `33ef63c`) as an ancestor. The current source was synchronized before that integration. No existing GitHub history needs to be replaced. This does not claim a GitHub push or hosted CI result.
 
 To recover the history into a new folder:
 
@@ -21,17 +21,8 @@ cd /path/to/DEVQUEST-repository
 git remote rename origin delivery-bundle
 git remote add origin https://github.com/ioanaghi/DEVQUEST.git
 git fetch origin
-```
-
-Safari verification found an existing `main` commit (`33ef63c`) containing only the original README. Preserve that commit when integrating. After fetching:
-
-```sh
 git switch main
-git merge origin/main --allow-unrelated-histories
-# If README.md conflicts, retain the completed project README, then:
-# git add README.md && git commit
-git push origin main
-git push origin 'refs/remotes/delivery-bundle/*:refs/heads/*'
+git merge origin/main
 ```
 
-The prepared checkout already has local branches, so from `/private/tmp/devquest-repository` merge the fetched initial `origin/main` first, then use `git push origin --all` once connectivity is available. Do not force-push if the remote already contains work.
+Inspect any newer remote work before pushing. Do not force-push shared branches. The source ZIP already includes local branches and the GitHub origin URL; it can be opened as a normal repository.

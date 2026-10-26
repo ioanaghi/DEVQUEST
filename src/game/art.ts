@@ -34,8 +34,20 @@ function shade(hex: string, factor: number) {
   );
 }
 function shadow(c: Context, x: number, y: number, w: number, h: number) {
-  rect(c, x + 3, y + 3, w, h, '#24342e25');
-  rect(c, x + 5, y + 5, w - 4, h - 1, '#24342e12');
+  const glow = c.createRadialGradient(
+    x + w * 0.55,
+    y + h * 0.62,
+    1,
+    x + w * 0.55,
+    y + h * 0.62,
+    w * 0.65,
+  );
+  glow.addColorStop(0, '#122e2744');
+  glow.addColorStop(0.65, '#18372a23');
+  glow.addColorStop(1, '#18372a00');
+  c.fillStyle = glow;
+  c.fillRect(x - w * 0.12, y - 2, w * 1.3, h + 13);
+  rect(c, x + 3, y + 3, w, h, '#24342e15');
 }
 function pot(c: Context, x: number, y: number, small = false, time = 0) {
   const k = small ? 0.7 : 1;
@@ -78,6 +90,18 @@ function monitor(c: Context, x: number, y: number, screen: string, time: number)
     const width = [10, 15, 7, 13][i];
     rect(c, x - 8 + (i % 2) * 2, y + 3 + i * 3, width, 1, i % 2 ? '#d1e7ba' : '#f0e6b9');
   }
+  if (x > 500) {
+    for (let row = 0; row < 3; row++) {
+      rect(c, x - 9, y + 3 + row * 4, 19, 1, '#c4ddbd88');
+      rect(c, x - 3, y + 3 + row * 4, 1, 3, '#c4ddbd77');
+    }
+  }
+  c.fillStyle = '#f0ead711';
+  c.beginPath();
+  c.moveTo(x - 12, y - 2);
+  c.lineTo(x + 2, y - 2);
+  c.lineTo(x - 12, y + 12);
+  c.fill();
   rect(c, x + 11, y + 16, 1, 1, Math.floor(time / 800) % 2 ? '#c4e6a7' : '#638875');
 }
 export function desk(c: Context, x: number, y: number, w: number, screen = '#618f80', time = 0) {
@@ -156,28 +180,28 @@ function makeBackground() {
   canvas.height = 400;
   const c = canvas.getContext('2d')!;
   rect(c, 0, 0, 640, 400, '#324e42');
-  // Staggered oak boards on an integer tile grid; all grain is deterministic.
-  for (let row = 0; row < 22; row++)
-    for (let column = -1; column < 21; column++) {
-      const x = column * 32 + (row % 2) * 16,
-        y = 56 + row * 16;
+  // Long, quiet floorboards keep the room warm without a repeating brick pattern.
+  for (let row = 0; row < 29; row++)
+    for (let column = -1; column < 15; column++) {
+      const x = column * 48 + (row % 3) * 16,
+        y = 56 + row * 12;
       const index = (((row * 13 + column * 7) % 6) + 6) % 6;
       rect(
         c,
         x,
         y,
-        32,
-        16,
-        ['#c89b6b', '#cca170', '#bd8c60', '#d0a774', '#c39667', '#cfa272'][index],
+        48,
+        12,
+        ['#ba926d', '#c19a74', '#bf9670', '#c59d77', '#c29a73', '#bd956f'][index],
       );
-      rect(c, x, y + 15, 32, 1, '#a67a54');
-      rect(c, x, y, 31, 1, '#e0b981');
-      rect(c, x + 31, y, 1, 15, '#ad8055');
-      rect(c, x + 3, y + 4, 12, 1, '#e0b27b50');
-      rect(c, x + 18, y + 10, 10, 1, '#976f4a22');
+      rect(c, x, y + 11, 48, 1, '#79573838');
+      rect(c, x, y, 47, 1, '#e8c49766');
+      rect(c, x + 47, y, 1, 11, '#7c57362b');
+      rect(c, x + 4, y + 4, 17, 1, '#e0b88736');
+      rect(c, x + 24, y + 8, 15, 1, '#82633f18');
       if (index % 2 === 0) {
-        rect(c, x + 7, y + 11, 6, 1, '#97704b33');
-        rect(c, x + 26, y + 3, 2, 1, '#8f654533');
+        rect(c, x + 8, y + 7, 8, 1, '#85633f26');
+        rect(c, x + 37, y + 3, 4, 1, '#e7c19744');
       }
     }
   rect(c, 404, 56, 220, 186, '#94aea0');
@@ -326,10 +350,105 @@ function makeBackground() {
   rect(c, 379, 149, 5, 15, '#d18868');
   rect(c, 379, 146, 5, 3, '#4d5350');
   rect(c, 383, 147, 3, 5, '#4d5350');
+  // Woven rug embroidery, a coffee-corner kilim, and small personal wall details.
+  for (const [x, y] of [
+    [205, 194],
+    [322, 194],
+    [205, 233],
+    [322, 233],
+  ]) {
+    rect(c, x, y, 7, 1, '#d5d7a8');
+    rect(c, x + 3, y - 3, 1, 7, '#d5d7a8');
+    rect(c, x + 2, y - 1, 3, 3, '#a7c1a0');
+  }
+  for (let x = 215; x < 324; x += 17) {
+    rect(c, x, 191, 3, 1, '#a5bf9c88');
+    rect(c, x, 239, 3, 1, '#a5bf9c88');
+  }
+  rect(c, 417, 317, 73, 65, '#a57e6333');
+  rect(c, 419, 318, 69, 61, '#d5b88d');
+  rect(c, 422, 320, 63, 57, '#bb876d');
+  for (let y = 324; y < 375; y += 7) {
+    rect(c, 423, y, 61, 2, y % 2 ? '#dfc69b' : '#e3ceb0');
+  }
+  for (let x = 421; x < 488; x += 4) {
+    rect(c, x, 316, 1, 3, '#e5d1a6');
+    rect(c, x, 379, 1, 3, '#e5d1a6');
+  }
+  // A suspended herb shelf belongs on the wall, leaving the navigation geometry intact.
+  rect(c, 181, 18, 1, 28, '#7f9479');
+  rect(c, 193, 18, 1, 28, '#7f9479');
+  rect(c, 174, 44, 27, 3, '#9a7451');
+  pot(c, 181, 32, true, 0);
+  for (let j = 0; j < 5; j++) {
+    rect(c, 175 + j * 2, 47 + j * 3, 4, 3, j % 2 ? '#698c62' : '#86a76f');
+    rect(c, 178 + j, 47 + j * 3, 1, 5, '#527c5d');
+  }
+  // Directional ambient occlusion where floors meet their walls.
+  const wallShade = c.createLinearGradient(0, 59, 0, 90);
+  wallShade.addColorStop(0, '#314d3b30');
+  wallShade.addColorStop(1, '#314d3b00');
+  c.fillStyle = wallShade;
+  c.fillRect(16, 59, 608, 31);
   return canvas;
 }
+const illustratedOffice = new Image();
+export const worldArtLoaded = new Promise<void>((resolve) => {
+  illustratedOffice.addEventListener('load', () => resolve(), { once: true });
+  illustratedOffice.addEventListener('error', () => resolve(), { once: true });
+});
+illustratedOffice.decoding = 'async';
+illustratedOffice.src = new URL('/art/pixelbyte-office-v3.png', window.location.href).href;
+const artReady = () => illustratedOffice.complete && illustratedOffice.naturalWidth > 0;
+function illustrationPatch(c: Context, x: number, y: number, w: number, h: number) {
+  const sx = illustratedOffice.naturalWidth / 640,
+    sy = illustratedOffice.naturalHeight / 400;
+  c.drawImage(illustratedOffice, x * sx, y * sy, w * sx, h * sy, x, y, w, h);
+}
+// These regions follow the illustrated furniture and provide true sprite occlusion.
+const ART_FOREGROUND = [
+  // Desk tops already live in the painted background. Only re-layer their
+  // narrow front aprons and feet so players are never clipped by boxy crops.
+  [74, 104, 95, 14, 118],
+  [105, 126, 35, 8, 134],
+  [222, 151, 96, 17, 168],
+  // Only the feet of the chair sit in front of the player. The backrest stays
+  // in the painted background, leaving the standing avatar's face unobscured.
+  [256, 178, 34, 14, 192],
+  [69, 240, 94, 14, 254],
+  [105, 271, 36, 13, 284],
+  [243, 277, 91, 13, 290],
+  [272, 308, 35, 12, 320],
+  [522, 117, 84, 14, 131],
+  [548, 145, 35, 13, 158],
+  [418, 192, 79, 14, 206],
+  [440, 220, 37, 11, 231],
+  [537, 276, 77, 12, 288],
+  [431, 316, 94, 14, 323],
+  [415, 354, 65, 26, 380],
+  [17, 307, 79, 62, 369],
+  [5, 268, 39, 61, 329],
+  [350, 321, 33, 52, 373],
+  [586, 308, 37, 65, 373],
+] as number[][];
 let background: HTMLCanvasElement | null = null;
 export function drawWorld(c: Context, time: number, _decoration: string | null) {
+  if (artReady()) {
+    c.drawImage(illustratedOffice, 0, 0, 640, 400);
+    // The environment is painted, while these tiny live details remain interactive.
+    for (const [x, y] of [
+      [119, 73],
+      [270, 121],
+      [561, 89],
+      [455, 170],
+    ]) {
+      c.globalAlpha = 0.08 + Math.sin(time / 1700 + x) * 0.025;
+      c.fillStyle = '#c4edcf';
+      c.fillRect(x - 8, y - 5, 15, 10);
+    }
+    c.globalAlpha = 1;
+    return;
+  }
   background ??= makeBackground();
   c.drawImage(background, 0, 0);
   // Small animated accents in the world.
@@ -345,6 +464,54 @@ const DESKS = [
   { x: 425, y: 178, w: 60, color: '#8b7ca6', chair: '#a58cae' },
 ];
 export function furnitureLayers(time: number, decoration: string | null): DrawLayer[] {
+  if (artReady()) {
+    const layers: DrawLayer[] = ART_FOREGROUND.map(([x, y, w, h, depth]) => ({
+      depth,
+      draw: (c) => illustrationPatch(c, x, y, w, h),
+    }));
+    if (decoration === 'plant')
+      layers.push({ depth: 167, draw: (c) => pot(c, 298, 137, true, time) });
+    if (decoration === 'cat')
+      layers.push({
+        depth: 197,
+        draw: (c) => {
+          c.save();
+          c.translate(321, 188);
+          shadow(c, -8, 0, 18, 7);
+          rect(c, -9, -6, 14, 7, '#d1a270');
+          rect(c, 3, -10, 8, 9, '#dfb780');
+          rect(c, 3, -13, 2, 4, '#b78660');
+          rect(c, 9, -13, 2, 4, '#b78660');
+          rect(c, 5, -6, 1, 1, '#465449');
+          rect(c, 9, -6, 1, 1, '#465449');
+          rect(c, -11, -7 + Math.sin(time / 700), 3, 7, '#bc8b61');
+          c.restore();
+        },
+      });
+    if (decoration === 'lamp')
+      layers.push({
+        depth: 168,
+        draw: (c) => {
+          const glow = c.createRadialGradient(305, 142, 1, 305, 142, 22);
+          glow.addColorStop(0, '#ffdb8b50');
+          glow.addColorStop(1, '#ffdb8b00');
+          c.fillStyle = glow;
+          c.fillRect(283, 120, 44, 44);
+        },
+      });
+    layers.push({
+      depth: 290,
+      draw: (c) => {
+        for (let i = 0; i < 3; i++) {
+          const phase = (time / 1400 + i * 0.33) % 1;
+          c.globalAlpha = (1 - phase) * 0.38;
+          rect(c, 550 + Math.sin(phase * 5 + i) * 1.5, 237 - phase * 12, 1, 3, '#f7efdb');
+        }
+        c.globalAlpha = 1;
+      },
+    });
+    return layers;
+  }
   const layers: DrawLayer[] = DESKS.flatMap((d) => [
     {
       depth: d.y + 27,
@@ -475,140 +642,249 @@ export function drawCharacter(
   walking = false,
   direction = 'down',
   animation = 'idle',
+  travel?: number,
 ) {
-  x = Math.round(x);
-  y = Math.round(y);
-  const step = walking ? Math.floor(time / 110) % 4 : 0;
-  const bob = walking ? step % 2 : Math.floor(time / 1100) % 2;
-  const jump = animation === 'celebration' ? -Math.abs(Math.sin(time / 110)) * 5 : 0;
-  const top = y - 29 + bob + jump;
-  c.fillStyle = '#23382b35';
+  const seed = parseInt(avatar.shirt.slice(1), 16) % 4700;
+  const t = time + seed;
+  const phase = walking ? (travel === undefined ? time / 100 : travel / 3.7) : 0;
+  const swing = walking ? Math.sin(phase) : 0;
+  const liftA = walking ? Math.max(0, swing) * 3 : 0,
+    liftB = walking ? Math.max(0, -swing) * 3 : 0;
+  const bounce = walking ? -Math.abs(Math.sin(phase)) * 1.15 : Math.sin(t / 1500) * 0.35;
+  const celebration = animation === 'celebration' ? -Math.abs(Math.sin(time / 150)) * 4 : 0;
+  const side = direction === 'left' || direction === 'right';
+  const back = direction === 'up';
+  c.save();
+  c.translate(Math.round(x), Math.round(y));
+  c.fillStyle = '#193c3040';
   c.beginPath();
-  c.ellipse(x, y + 1, 8, 3, 0, 0, Math.PI * 2);
+  c.ellipse(0, 1, 7.5, 2.6, 0, 0, Math.PI * 2);
   c.fill();
-  if (walking) {
-    for (let i = 0; i < 2; i++)
-      rect(c, x - 5 + i * 8, y + 3 + (Math.floor(time / 100 + i) % 3), 2, 1, '#e8d9ad50');
-  }
-  const pants = '#344253';
-  rect(c, x - 5, y - 9 + jump, 4, 9 + (step === 1 ? 1 : 0), pants);
-  rect(c, x + 1, y - 9 + jump, 4, 9 + (step === 3 ? 1 : 0), pants);
-  rect(c, x - 4, y - 8 + jump, 1, 6, '#647082');
-  rect(c, x + 2, y - 8 + jump, 1, 6, '#647082');
-  rect(c, x - 6, y - 2 + (step === 1 ? 1 : 0) + jump, 6, 4, '#2f4145');
-  rect(c, x, y - 2 + (step === 3 ? 1 : 0) + jump, 6, 4, '#2f4145');
-  rect(c, x - 5, y - 1 + (step === 1 ? 1 : 0) + jump, 5, 2, '#ede6ce');
-  rect(c, x + 1, y - 1 + (step === 3 ? 1 : 0) + jump, 5, 2, '#ede6ce');
+  if (direction === 'right') c.scale(-1, 1);
+  const top = -29 + bounce + celebration;
+  // Legs alternate in both lift and swing. The gait follows distance actually travelled.
+  const pants = '#354653';
+  rect(c, -5, -9 + celebration - liftA, 4, 9, pants);
+  rect(c, 1, -9 + celebration - liftB, 4, 9, pants);
+  rect(c, -4, -8 + celebration - liftA, 1, 6, '#627481');
+  rect(c, 2, -8 + celebration - liftB, 1, 6, '#627481');
+  rect(c, -6, -2 + celebration - liftA, 6, 4, '#2c4045');
+  rect(c, 0, -2 + celebration - liftB, 6, 4, '#2c4045');
+  rect(c, -5, -1 + celebration - liftA, 5, 2, '#e9e2ce');
+  rect(c, 1, -1 + celebration - liftB, 5, 2, '#e9e2ce');
   const shirt = avatar.shirt,
     skin = avatar.skin;
-  rect(c, x - 7, top + 13, 14, 12, '#2d3d45');
-  rect(c, x - 6, top + 13, 12, 11, shade(shirt, 0.8));
-  rect(c, x - 5, top + 14, 10, 8, shirt);
-  rect(c, x - 4, top + 14, 3, 7, shade(shirt, 1.2));
-  rect(c, x - 3, top + 21, 7, 2, shade(shirt, 0.85));
-  rect(c, x - 3, top + 12, 6, 3, shade(shirt, 1.18));
-  rect(c, x - 1, top + 15, 1, 3, '#ecdfbe');
-  rect(c, x + 2, top + 15, 1, 3, '#ecdfbe');
-  const hands = animation === 'celebration' ? -12 : animation === 'typing' ? -4 : 0;
-  rect(c, x - 8, top + 15, 3, 7, shade(shirt, 0.85));
-  rect(c, x + 5, top + 15, 3, 7, shade(shirt, 0.85));
-  rect(c, x - 8, top + 20 + hands, 3, 4, shade(skin, 0.85));
-  rect(c, x - 7, top + 20 + hands, 2, 3, skin);
-  rect(c, x + 5, top + 20 + hands, 3, 4, skin);
-  // A one-pixel outline and three face tones keep the small silhouette readable.
-  const hair = '#4d3937';
-  rect(c, x - 6, top + 1, 12, 13, hair);
-  rect(c, x - 7, top + 4, 14, 8, hair);
-  rect(c, x - 5, top + 4, 10, 10, shade(skin, 0.88));
-  rect(c, x - 5, top + 4, 9, 8, skin);
-  rect(c, x - 4, top + 4, 3, 5, shade(skin, 1.12));
-  rect(c, x - 3, top + 13, 6, 2, skin);
-  rect(c, x - 7, top + 7, 2, 4, skin);
-  rect(c, x + 5, top + 7, 2, 4, shade(skin, 0.85));
-  rect(c, x - 6, top, 12, 5, hair);
-  rect(c, x - 4, top - 1, 9, 3, hair);
-  rect(c, x - 6, top + 3, 3, 4, hair);
-  rect(c, x + 4, top + 3, 3, 4, hair);
-  rect(c, x - 4, top + 1, 7, 1, '#77534a');
-  rect(c, x - 4, top + 4, 2, 2, '#68453f');
-  if (avatar.hair === 'bob') {
-    rect(c, x - 7, top + 3, 3, 12, hair);
-    rect(c, x + 5, top + 3, 3, 12, hair);
-    rect(c, x - 6, top + 6, 1, 7, '#77534a');
+  const width = side ? 11 : 14,
+    left = side ? -5 : -7;
+  rect(c, left, top + 13, width, 12, '#2b4044');
+  rect(c, left + 1, top + 13, width - 2, 11, shade(shirt, 0.78));
+  rect(c, left + 2, top + 14, width - 4, 8, shirt);
+  rect(c, left + 2, top + 14, 3, 6, shade(shirt, 1.2));
+  rect(c, -3, top + 21, 6, 2, shade(shirt, 0.88));
+  rect(c, -3, top + 12, 6, 3, shade(shirt, 1.15));
+  if (!back) {
+    rect(c, -1, top + 15, 1, 3, '#ede2c1');
+    rect(c, 2, top + 15, 1, 3, '#ede2c1');
   }
-  if (avatar.hair === 'curly') {
-    [
+  // A quiet typing/cup gesture is distinct from the walk cycle.
+  const typing = animation === 'typing',
+    coffee = animation === 'coffee' && t % 10500 > 6500 && t % 10500 < 8600;
+  const armA =
+    animation === 'celebration' ? -10 : typing ? -4 + Math.sin(t / 95) : walking ? swing * 2 : 0;
+  const armB =
+    animation === 'celebration'
+      ? -12
+      : typing
+        ? -4 - Math.sin(t / 95)
+        : coffee
+          ? -7
+          : walking
+            ? -swing * 2
+            : 0;
+  rect(c, left - 1, top + 15 + armA, 3, 7, shade(shirt, 0.84));
+  rect(c, left + width - 2, top + 15 + armB, 3, 7, shade(shirt, 0.9));
+  rect(c, left - 1, top + 21 + armA, 3, 3, skin);
+  rect(c, left + width - 2, top + 21 + armB, 3, 3, skin);
+  if (coffee) {
+    rect(c, left + width - 2, top + 17 + armB, 5, 5, '#eee0ba');
+    rect(c, left + width - 1, top + 17 + armB, 3, 1, '#81654c');
+  }
+  const hair = '#463837';
+  rect(c, -6, top + 1, 12, 13, hair);
+  rect(c, -7, top + 4, 14, 8, hair);
+  rect(c, -5, top + 4, 10, 10, shade(skin, 0.88));
+  rect(c, -5, top + 4, 9, 8, skin);
+  rect(c, -4, top + 4, 3, 5, shade(skin, 1.1));
+  rect(c, -3, top + 13, 6, 2, skin);
+  rect(c, 5, top + 7, 2, 4, shade(skin, 0.84));
+  if (!side) rect(c, -7, top + 7, 2, 4, skin);
+  else rect(c, -7, top + 9, 2, 2, skin);
+  rect(c, -6, top, 12, 5, hair);
+  rect(c, -4, top - 1, 9, 3, hair);
+  rect(c, -6, top + 3, 3, 4, hair);
+  rect(c, 4, top + 3, 3, 4, hair);
+  rect(c, -4, top + 1, 7, 1, '#76564c');
+  if (avatar.hair === 'bob') {
+    rect(c, -7, top + 3, 3, 12, hair);
+    rect(c, 5, top + 3, 3, 12, hair);
+    rect(c, -6, top + 6, 1, 7, '#76564c');
+  }
+  if (avatar.hair === 'curly')
+    for (const [a, b, w, h] of [
       [-8, 1, 4, 6],
       [-5, -2, 5, 5],
       [0, -2, 5, 5],
       [4, 0, 4, 5],
-    ].forEach(([a, b, w, h]) => {
-      rect(c, x + a, top + b, w, h, hair);
-      rect(c, x + a + 1, top + b, 2, 1, '#77534a');
-    });
-  }
-  if (direction !== 'up') {
-    const offset = direction === 'left' ? -2 : direction === 'right' ? 2 : 0;
-    const blink = Math.floor(time / 180) % 29 === 0;
-    rect(c, x - 3 + offset, top + 8, 2, blink ? 1 : 2, '#293a41');
-    rect(c, x + 2 + offset, top + 8, 2, blink ? 1 : 2, '#293a41');
-    if (!blink) {
-      rect(c, x - 3 + offset, top + 8, 1, 1, '#fff4d7');
-      rect(c, x + 2 + offset, top + 8, 1, 1, '#fff4d7');
+    ]) {
+      rect(c, a, top + b, w, h, hair);
+      rect(c, a + 1, top + b, 2, 1, '#76564c');
     }
-    rect(c, x - 4, top + 11, 2, 1, '#d68d7877');
-    rect(c, x + 3, top + 11, 2, 1, '#d68d7877');
-    rect(c, x, top + 12, 2, 1, '#a26855');
-    if (avatar.glasses) {
-      rect(c, x - 5 + offset, top + 7, 5, 4, '#34444b');
-      rect(c, x + 1 + offset, top + 7, 5, 4, '#34444b');
-      rect(c, x - 4 + offset, top + 8, 3, 2, '#a8c4b3');
-      rect(c, x + 2 + offset, top + 8, 3, 2, '#a8c4b3');
-      rect(c, x, top + 8, 2, 1, '#34444b');
-    }
+  if (back) {
+    rect(c, -5, top + 4, 10, 7, hair);
+    rect(c, -4, top + 5, 2, 3, '#684b42');
   } else {
-    rect(c, x - 5, top + 4, 10, 7, hair);
-    rect(c, x - 4, top + 5, 2, 3, '#68483f');
+    const blink = t % 5300 < 105;
+    const eyes = side ? [-3] : [-3, 2];
+    for (const eye of eyes) {
+      rect(c, eye, top + 7, 2, 1, '#84634f88');
+      rect(c, eye, top + 9, 2, blink ? 1 : 2, '#293d40');
+      if (!blink) rect(c, eye, top + 9, 1, 1, '#f9eccd');
+    }
+    rect(c, side ? -4 : -5, top + 12, 2, 1, '#c9806d55');
+    if (!side) rect(c, 4, top + 12, 1, 1, '#c9806d55');
+    const talking = animation === 'talking' && Math.floor(t / 130) % 3 === 0;
+    rect(c, side ? -4 : 0, top + 13, side ? 1 : 2, talking ? 2 : 1, '#9a6652');
+    if (avatar.glasses) {
+      for (const eye of side ? [-5] : [-5, 1]) {
+        rect(c, eye, top + 8, 5, 4, '#31474a');
+        rect(c, eye + 1, top + 9, 3, 2, '#b5cdb9');
+      }
+      rect(c, 0, top + 9, 2, 1, '#31474a');
+    }
   }
-  if (animation === 'celebration') {
-    for (let i = 0; i < 5; i++) {
-      const a = time / 300 + i * 1.25;
+  if (animation === 'celebration')
+    for (let i = 0; i < 8; i++) {
+      const a = time / 380 + i * 0.785;
       rect(
         c,
-        x + Math.round(Math.cos(a) * 16),
-        top - 8 + Math.round(Math.sin(a) * 7),
+        Math.cos(a) * 16,
+        top - 7 + Math.sin(a) * 7,
         2,
         2,
-        ['#f3d58c', '#b1d5a0', '#d9b0ca'][i % 3],
+        ['#efcc86', '#b0cf98', '#c4add2'][i % 3],
       );
     }
-  }
+  c.restore();
 }
 export function drawMarker(c: Context, x: number, y: number, time: number) {
-  const bob = Math.round(Math.sin(time / 350) * 2);
+  const offset = Math.sin(time / 600) * 1.4;
   c.save();
-  c.translate(x, y - 49 + bob);
-  shadow(c, -6, -6, 14, 16);
-  rect(c, -7, -7, 15, 14, '#394f45');
-  rect(c, -6, -8, 13, 16, '#e9c77a');
-  rect(c, -5, -7, 11, 13, '#ffe6a2');
-  rect(c, -1, -5, 3, 7, '#806344');
-  rect(c, -1, 4, 3, 2, '#806344');
-  rect(c, -1, 8, 3, 2, '#e9c77a');
+  c.translate(Math.round(x), Math.round(y - 48 + offset));
+  c.fillStyle = '#253f3722';
+  c.beginPath();
+  c.ellipse(0, 7, 8, 2, 0, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = '#f6df9f';
+  c.beginPath();
+  c.moveTo(0, -7);
+  c.lineTo(6, 0);
+  c.lineTo(0, 7);
+  c.lineTo(-6, 0);
+  c.closePath();
+  c.fill();
+  rect(c, -1, -3, 2, 5, '#7b6742');
+  rect(c, -1, 3, 2, 1, '#7b6742');
   c.restore();
 }
 export function drawAtmosphere(c: Context, time: number) {
-  // Warm, subtle drifting dust inside the beams, never across the UI.
-  for (let i = 0; i < 13; i++) {
-    const x = 65 + ((i * 41) % 280) + Math.sin(time / 5000 + i) * 7,
-      y = 62 + ((i * 17 + time / 160) % 109);
-    c.fillStyle = i % 3 ? '#ffedbd55' : '#fff5d582';
+  // Sunlit dust drifts slowly, with each particle following its own path.
+  c.save();
+  for (let i = 0; i < 18; i++) {
+    const x = 71 + ((i * 37) % 274) + Math.sin(time / 7000 + i * 1.7) * 10,
+      y = 65 + ((i * 19 + time / 500) % 100);
+    c.globalAlpha = 0.18 + Math.sin(time / 1700 + i) * 0.1;
+    c.fillStyle = '#fff1bd';
     c.fillRect(Math.round(x), Math.round(y), 1, 1);
   }
-  const light = c.createLinearGradient(0, 0, 640, 400);
-  light.addColorStop(0, '#f8dda40e');
-  light.addColorStop(0.6, '#3d624200');
-  light.addColorStop(1, '#25494118');
-  c.fillStyle = light;
+  c.globalAlpha = 1;
+  // Local pools of light leave depth in the corners instead of washing out the room.
+  for (const [x, y, r, color] of [
+    [114, 105, 112, '#ffe8af'],
+    [261, 177, 96, '#ffe6b3'],
+    [560, 142, 68, '#cbe9ca'],
+    [460, 346, 63, '#ffce91'],
+  ] as [number, number, number, string][]) {
+    const glow = c.createRadialGradient(x, y, 2, x, y, r);
+    glow.addColorStop(0, color + '16');
+    glow.addColorStop(0.65, color + '07');
+    glow.addColorStop(1, color + '00');
+    c.fillStyle = glow;
+    c.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  const shade = c.createLinearGradient(0, 60, 640, 400);
+  shade.addColorStop(0, '#e2d4ac00');
+  shade.addColorStop(1, '#183c3c24');
+  c.fillStyle = shade;
   c.fillRect(16, 58, 608, 326);
+  c.restore();
+}
+export function drawDeskScene(c: Context, avatar: Avatar, time: number) {
+  if (artReady()) {
+    c.save();
+    c.scale(1.5, 1.5);
+    c.translate(-194, -80);
+    drawWorld(c, time, null);
+    [
+      ...furnitureLayers(time, null),
+      {
+        depth: 193,
+        draw: (ctx: Context) => drawCharacter(ctx, 270, 176, avatar, time, false, 'up', 'typing'),
+      },
+    ]
+      .sort((a, b) => a.depth - b.depth)
+      .forEach((layer) => layer.draw(c));
+    c.restore();
+    const fade = c.createRadialGradient(120, 105, 43, 120, 105, 118);
+    fade.addColorStop(0, '#1b363000');
+    fade.addColorStop(1, '#1b3630');
+    c.fillStyle = fade;
+    c.fillRect(0, 0, 240, 190);
+    return;
+  }
+  // A personal desk diorama for the pause screen, drawn with the same game assets.
+  const backdrop = c.createLinearGradient(0, 0, 0, 190);
+  backdrop.addColorStop(0, '#314e45');
+  backdrop.addColorStop(1, '#182f2d');
+  c.fillStyle = backdrop;
+  c.fillRect(0, 0, 240, 190);
+  rect(c, 28, 33, 184, 112, '#a89d77');
+  rect(c, 29, 34, 182, 79, '#91a48b');
+  for (let i = 0; i < 6; i++) rect(c, 29, 114 + i * 5, 182, 5, i % 2 ? '#9e805b' : '#a98c65');
+  windowArt(c, 85, 70);
+  plant(c, 46, 88, time);
+  // Draw a small shelf and books beside the window.
+  rect(c, 166, 65, 27, 4, '#d5b381');
+  for (let i = 0; i < 5; i++)
+    rect(
+      c,
+      169 + i * 4,
+      51 + (i % 2) * 3,
+      3,
+      14 - (i % 2) * 3,
+      ['#d5bd91', '#9cb5a2', '#b299b7'][i % 3],
+    );
+  drawCharacter(c, 121, 151, avatar, time, false, 'up', 'typing');
+  desk(c, 77, 126, 91, '#6d9988', time);
+  plant(c, 168, 117, time);
+  chair(c, 112, 155, avatar.shirt);
+  const light = c.createRadialGradient(118, 109, 2, 118, 109, 82);
+  light.addColorStop(0, '#ffe7ae22');
+  light.addColorStop(1, '#ffe7ae00');
+  c.fillStyle = light;
+  c.fillRect(28, 33, 184, 145);
+  const fade = c.createRadialGradient(120, 98, 45, 120, 98, 115);
+  fade.addColorStop(0, '#1b363000');
+  fade.addColorStop(1, '#1b3630');
+  c.fillStyle = fade;
+  c.fillRect(0, 0, 240, 190);
 }
