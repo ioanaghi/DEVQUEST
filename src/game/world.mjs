@@ -1,31 +1,37 @@
 export const MAP = { width: 640, height: 400, tile: 16 };
 export const OBJECTS = [
-  { id: 'alex', label: 'Alex · your mentor', x: 139, y: 132, radius: 40 },
-  { id: 'desk', label: 'Your workstation', x: 263, y: 194, radius: 43 },
+  { id: 'alex', label: 'Alex · your mentor', x: 150, y: 137, radius: 40 },
+  { id: 'desk', label: 'Your workstation', x: 270, y: 183, radius: 43 },
   { id: 'sql', label: 'SQL investigation terminal', x: 557, y: 153, radius: 42 },
   { id: 'board', label: 'Training whiteboard', x: 469, y: 100, radius: 38 },
   { id: 'coffee', label: 'A very important coffee', x: 566, y: 291, radius: 40 },
   { id: 'tickets', label: 'Team noticeboard', x: 331, y: 70, radius: 38 },
   { id: 'maya', label: 'Maya · product designer', x: 451, y: 332, radius: 32 },
 ];
+// Collision footprints are aligned with the final illustrated environment.
 export const SOLIDS = [
-  // Internal walls leave generous doorways between all three spaces.
-  { x: 392, y: 56, w: 12, h: 122 },
-  { x: 392, y: 228, w: 12, h: 156 },
-  { x: 404, y: 242, w: 82, h: 10 },
-  { x: 534, y: 242, w: 90, h: 10 },
-  { x: 80, y: 91, w: 88, h: 30 },
-  { x: 218, y: 147, w: 90, h: 30 },
-  { x: 70, y: 226, w: 92, h: 30 },
-  { x: 245, y: 267, w: 92, h: 30 },
-  { x: 526, y: 105, w: 77, h: 30 },
-  { x: 425, y: 178, w: 60, h: 24 },
-  { x: 541, y: 262, w: 65, h: 32 },
-  { x: 425, y: 351, w: 55, h: 27 },
-  { x: 24, y: 62, w: 22, h: 24 },
-  { x: 356, y: 342, w: 22, h: 24 },
-  { x: 26, y: 334, w: 58, h: 34 },
-  { x: 592, y: 351, w: 24, h: 24 },
+  // Colleagues occupy a small footprint, so saved/player sprites cannot overlap them.
+  { x: 143, y: 129, w: 14, h: 10 },
+  { x: 444, y: 324, w: 14, h: 10 },
+  { x: 162, y: 259, w: 12, h: 10 },
+  { x: 389, y: 35, w: 12, h: 141 },
+  { x: 389, y: 216, w: 12, h: 164 },
+  { x: 401, y: 232, w: 77, h: 11 },
+  { x: 526, y: 232, w: 99, h: 11 },
+  { x: 76, y: 83, w: 90, h: 35 },
+  { x: 224, y: 126, w: 91, h: 42 },
+  { x: 71, y: 218, w: 91, h: 36 },
+  { x: 245, y: 249, w: 88, h: 41 },
+  { x: 525, y: 90, w: 78, h: 41 },
+  { x: 421, y: 173, w: 74, h: 33 },
+  { x: 540, y: 247, w: 72, h: 41 },
+  { x: 445, y: 285, w: 65, h: 38 },
+  { x: 417, y: 356, w: 61, h: 24 },
+  { x: 22, y: 62, w: 18, h: 20 },
+  { x: 353, y: 346, w: 25, h: 27 },
+  { x: 19, y: 313, w: 64, h: 55 },
+  { x: 591, y: 339, w: 28, h: 34 },
+  { x: 599, y: 172, w: 23, h: 50 },
 ];
 export function canStand(x, y) {
   return (
@@ -58,5 +64,5 @@ export function nearestObject(player) {
   );
 }
 export function roomAt(x, y) {
-  return x < 400 ? 'Developer office' : y < 248 ? 'Training room' : 'Coffee corner';
+  return x < 401 ? 'Developer office' : y < 243 ? 'Training room' : 'Coffee corner';
 }

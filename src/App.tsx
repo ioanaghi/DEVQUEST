@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { worldArtLoaded } from './game/art';
 import { GameWorld } from './game/GameWorld';
 import { AvatarPreview } from './components/AvatarPreview';
-import { Modal } from './components/Modal';
+import { DialogueText } from './components/DialogueText';
+import { DeskScene } from './components/DeskScene';
+import { Modal, requestOverlayClose } from './components/Modal';
 import { Workspace } from './components/Workspace';
 import { GameIcon } from './components/GameIcon';
 import { OBJECTS, SOLIDS } from './game/world.mjs';
@@ -15,6 +18,7 @@ import {
 } from './lib/progression.mjs';
 import { CHAPTERS } from './lib/content';
 import type { Interactive, Mission, Panel, Save } from './types';
+import { cue, setSoundEnabled } from './game/sound';
 import { isDesktop, request } from './lib/platform';
 
 type Dialogue = {
@@ -34,7 +38,7 @@ function initialSave(): Save {
 
 export default function App() {
   const [save, setSave] = useState<Save>(initialSave);
-  const [ready, setReady] = useState(!isDesktop);
+  const [ready, setReady] = useState(false);
   const [session, setSession] = useState(0);
   const [panel, setPanel] = useState<Panel>(null);
   const [dialogue, setDialogue] = useState<Dialogue | null>(null);
@@ -48,11 +52,12 @@ export default function App() {
   const [draftName, setDraftName] = useState(save.name);
   const [fullScreen, setFullScreen] = useState(isDesktop);
   const [questCollapsed, setQuestCollapsed] = useState(false);
+  const [hudOverlap, setHudOverlap] = useState(false);
   const progress = totals(save),
     active = quest(save),
     finished = save.completed.length === 3;
   const toastTimer = useRef(0);
-  const audio = useRef<AudioContext | null>(null);
+  useEffect(() => setSoundEnabled(save.sound), [save.sound]);
   useEffect(() => {
     if (!ready) return;
     const timer = setTimeout(() => {
@@ -104,7 +109,8 @@ export default function App() {
         })
         .catch(() => {});
       void request('/api/save/load')
-        .then((data) => {
+        .then(async (data) => {
+          await worldArtLoaded;
           if (active) {
             const restored = restoreState(data) as Save;
             setSave(restored);
@@ -119,6 +125,10 @@ export default function App() {
           }
         });
     }
+    if (!isDesktop)
+      void worldArtLoaded.then(() => {
+        if (active) setReady(true);
+      });
     return () => {
       active = false;
     };
@@ -166,8 +176,8 @@ export default function App() {
   useEffect(() => {
     const escape = () => {
       if (!save.onboarded) return;
-      if (dialogue) setDialogue(null);
-      else setPanel((current) => (current ? null : 'menu'));
+      if (document.querySelector('dialog[open]')) requestOverlayClose();
+      else setPanel('menu');
     };
     window.addEventListener('devquest:escape', escape);
     return () => window.removeEventListener('devquest:escape', escape);
@@ -175,6 +185,7 @@ export default function App() {
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
   const update = useCallback((patch: Partial<Save>) => setSave((s) => ({ ...s, ...patch })), []);
   const close = useCallback(() => setPanel(null), []);
+  const dismissPanel = useCallback(() => requestOverlayClose(), []);
   const onPosition = useCallback(
     (position: Save['position']) =>
       setSave((s) =>
@@ -189,27 +200,7 @@ export default function App() {
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(''), 4800);
   };
-  const chime = () => {
-    if (!save.sound) return;
-    try {
-      audio.current ??= new AudioContext();
-      void audio.current.resume();
-      [523.25, 659.25, 783.99].forEach((frequency, index) => {
-        const osc = audio.current!.createOscillator(),
-          gain = audio.current!.createGain(),
-          start = audio.current!.currentTime + index * 0.09;
-        osc.type = 'sine';
-        osc.frequency.value = frequency;
-        gain.gain.setValueAtTime(0, start);
-        gain.gain.linearRampToValueAtTime(0.06, start + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.25);
-        osc.connect(gain);
-        gain.connect(audio.current!.destination);
-        osc.start(start);
-        osc.stop(start + 0.26);
-      });
-    } catch {}
-  };
+  const chime = () => cue('reward');
   const talk = (d: Dialogue) => {
     setDialoguePage(0);
     setDialogue(d);
@@ -395,7 +386,14 @@ export default function App() {
   };
 
   return (
-    <div className="game-app">
+    <div className="game-app polished-edition">
+      {save.onboarded && (
+        <div className="arrival-title" aria-hidden="true">
+          <span>PIXELBYTE STUDIOS</span>
+          <strong>{save.metAlex ? 'Welcome back.' : 'Your first day.'}</strong>
+          <i />
+        </div>
+      )}
       <GameWorld
         key={session}
         save={save}
@@ -406,6 +404,7 @@ export default function App() {
         onInteract={interact}
         onPosition={onPosition}
         onMap={() => setPanel('map')}
+        onHudOverlap={setHudOverlap}
       />
       <div className={`game-hud ${panel || dialogue || !save.onboarded ? 'hud-muted' : ''}`}>
         <div className="hud-player game-frame">
@@ -432,7 +431,7 @@ export default function App() {
           <span className="chapter-diamond">✦</span>
           <div>
             <span>CHAPTER 00</span>
-            <strong>Your first day</strong>
+            <strong>Monday at PixelByte</strong>
           </div>
         </div>
         <div className="hud-top-right">
@@ -455,7 +454,7 @@ export default function App() {
           </button>
         </div>
         <aside
-          className={`hud-quest game-frame ${questCollapsed ? 'collapsed' : ''}`}
+          className={`hud-quest game-frame ${questCollapsed ? 'collapsed' : ''} ${hudOverlap ? 'hud-yield' : ''}`}
           aria-label="Active quest"
         >
           <button
@@ -531,7 +530,7 @@ export default function App() {
                 DEV<span>QUEST</span>
               </span>
               <div className="pause-avatar">
-                <AvatarPreview avatar={save.avatar} size={120} />
+                <DeskScene avatar={save.avatar} />
               </div>
               <span className="eyebrow">YOUR FIRST DAY AT PIXELBYTE</span>
               <h3>{save.name || 'Your story starts here.'}</h3>
@@ -541,7 +540,7 @@ export default function App() {
               <small>Something good is taking shape.</small>
             </div>
             <div className="pause-actions">
-              <button className="button button-primary resume-button" onClick={close}>
+              <button className="button button-primary resume-button" onClick={dismissPanel}>
                 <GameIcon name="play" size={18} /> Resume adventure <kbd>ESC</kbd>
               </button>
               <button onClick={() => setPanel('quests')}>
@@ -585,7 +584,7 @@ export default function App() {
             <span>
               <i className="live-dot" /> Your progress is saved on this device
             </span>
-            <span>v0.2.0 · PIXELBYTE STUDIOS</span>
+            <span>v0.3.0 · PIXELBYTE STUDIOS</span>
           </div>
         </Modal>
       )}
@@ -843,6 +842,7 @@ export default function App() {
                         : save.avatar
                   }
                   size={73}
+                  animation="talking"
                 />
               </div>
               <strong>{dialogue.speaker}</strong>
@@ -850,28 +850,22 @@ export default function App() {
                 {dialoguePage + 1} / {dialogue.text.length}
               </span>
             </div>
-            <p key={dialoguePage}>{dialogue.text[dialoguePage]}</p>
-            <div className="dialogue-actions">
-              <span>
-                {dialogue.text.length > 1
-                  ? 'Good things start with a conversation.'
-                  : 'Take a breath. You’re doing fine.'}
-              </span>
-              <button
-                className="button button-primary"
-                onClick={() => {
-                  if (dialoguePage < dialogue.text.length - 1) setDialoguePage((p) => p + 1);
-                  else {
-                    setDialogue(null);
-                    dialogue.finish?.();
-                  }
-                }}
-              >
-                {dialoguePage < dialogue.text.length - 1
-                  ? 'Go on →'
-                  : (dialogue.action ?? 'Back to the office →')}
-              </button>
-            </div>
+            <DialogueText
+              key={`${dialogue.speaker}-${dialoguePage}`}
+              text={dialogue.text[dialoguePage]}
+              label={
+                dialoguePage < dialogue.text.length - 1
+                  ? 'Continue'
+                  : (dialogue.action ?? 'Back to the office')
+              }
+              onAdvance={() => {
+                if (dialoguePage < dialogue.text.length - 1) setDialoguePage((page) => page + 1);
+                else {
+                  dialogue.finish?.();
+                  requestOverlayClose();
+                }
+              }}
+            />
           </div>
         </Modal>
       )}
@@ -1051,11 +1045,12 @@ export default function App() {
           <div className="panel-content help-content">
             <h3>Your controls</h3>
             <p>
-              <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or arrow keys to walk.{' '}
-              <kbd>E</kbd> to interact. <kbd>Esc</kbd> to pause, resume, or close a panel. Open
-              quests with <kbd>Q</kbd>, your journal with <kbd>J</kbd>, skills with <kbd>K</kbd>,
-              your backpack with <kbd>I</kbd>, and the office map with <kbd>M</kbd>. The map and
-              quest log also let you reach every story interaction without walking.
+              <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or arrow keys to walk. Hold{' '}
+              <kbd>Shift</kbd> to move faster. <kbd>E</kbd> to interact. <kbd>Esc</kbd> to pause,
+              resume, or close a panel. Open quests with <kbd>Q</kbd>, your journal with{' '}
+              <kbd>J</kbd>, skills with <kbd>K</kbd>, your backpack with <kbd>I</kbd>, and the
+              office map with <kbd>M</kbd>. The map and quest log also let you reach every story
+              interaction without walking.
             </p>
             <h3>Your workspace</h3>
             <p>

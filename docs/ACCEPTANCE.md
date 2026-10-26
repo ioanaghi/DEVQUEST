@@ -34,3 +34,11 @@ The full Java integration test is skipped unless `DEVQUEST_TEST_DOCKER=1`; the d
 ## Release checks
 
 The Mac build must pass `codesign --verify --deep --strict`. The packaged runtime must have only system library dependencies. ZIP integrity and SHA-256 are checked before delivery. Local ad-hoc signing is separate from Developer ID signing and Apple notarization.
+
+## 0.3.0 local verification — 2026-10-26
+
+- `npm run check`: 25 passed, zero failed, one optional Docker integration test skipped. This includes three movement/camera tests for normalized input, braking, frame-rate-independent damping, and camera bounds; updated map reachability also passes.
+- The packaged native app launches offline in full screen and restores the existing developer, completed missions, code, XP, and coins. No save reset was performed.
+- Native UI walkthrough checked the illustrated world, adjusted furniture/NPC placement, pause-menu composition and desk scene, opening/closing overlays, map-to-mentor navigation, progressively revealed dialogue, E to continue, and the highlighted Java editor running its three passing samples.
+- A native inactive-window regression was found during this walkthrough: WebKit could hold CSS fades at zero opacity. Essential text now starts visible; modal/typewriter timing uses the shared frame clock with a native watchdog. The corrected packaged build visibly shows all sample rows and feedback.
+- The build script verified the app signature and bundled runtime dependencies. The final ZIP integrity check passed and its SHA-256 matches the delivered checksum. Public notarization and the optional Docker compiler are outside this local verification.

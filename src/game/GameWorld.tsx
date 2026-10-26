@@ -3,6 +3,9 @@ import { drawWorld, drawCharacter, drawMarker, furnitureLayers, drawAtmosphere }
 import { canStand, movePlayer, nearestObject, OBJECTS, roomAt } from './world.mjs';
 import type { Interactive, Save } from '../types';
 import { cancelFrame, scheduleFrame } from './clock';
+import { steer, cameraTarget, approachCamera } from './motion.mjs';
+import { cue } from './sound';
+import { motionReduced } from '../lib/motion';
 
 type Props = {
   save: Save;
@@ -13,6 +16,7 @@ type Props = {
   onInteract: (id: Interactive) => void;
   onPosition: (p: { x: number; y: number }) => void;
   onMap: () => void;
+  onHudOverlap: (covered: boolean) => void;
 };
 
 export function GameWorld(props: Props) {
@@ -40,6 +44,15 @@ export function GameWorld(props: Props) {
       direction = 'down',
       lastNear = '',
       lastRoom = '';
+    let velocity = { x: 0, y: 0 },
+      distance = 0,
+      worldTime = 7000;
+    let camera = cameraTarget(player.current, velocity, 480, 288);
+    let focusedObject: string | null = null;
+    let focusAmount = 0,
+      lastFootDistance = 0,
+      lastFootTime = 0,
+      lastHudOverlap = false;
     let w = 480,
       h = 288;
     let scale = 3;
@@ -52,6 +65,7 @@ export function GameWorld(props: Props) {
       context.imageSmoothingEnabled = false;
       element.style.width = `${w * scale}px`;
       element.style.height = `${h * scale}px`;
+      camera = cameraTarget(player.current, velocity, w, h);
     };
     const observer = new ResizeObserver(resize);
     observer.observe(parent);
@@ -70,17 +84,46 @@ export function GameWorld(props: Props) {
           Number(keys.current.has('s') || keys.current.has('arrowdown')) -
           Number(keys.current.has('w') || keys.current.has('arrowup'));
       }
-      if (dx || dy) {
-        const speed = (92 * dt) / Math.hypot(dx, dy);
-        player.current = movePlayer(player.current, dx * speed, dy * speed);
-        direction = Math.abs(dx) > 0 ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
+      const reduced = motionReduced();
+      velocity = p.paused
+        ? { x: 0, y: 0 }
+        : steer(velocity, { x: dx, y: dy }, dt, keys.current.has('shift'));
+      const before = player.current;
+      player.current = movePlayer(before, velocity.x * dt, velocity.y * dt);
+      const travelled = Math.hypot(player.current.x - before.x, player.current.y - before.y);
+      distance += travelled;
+      if (travelled > 0.02 && distance - lastFootDistance > 18 && time - lastFootTime > 170) {
+        cue('step');
+        lastFootDistance = distance;
+        lastFootTime = time;
       }
+      const moving = travelled > 0.04;
+      if (moving)
+        direction =
+          Math.abs(velocity.x) > Math.abs(velocity.y)
+            ? velocity.x > 0
+              ? 'right'
+              : 'left'
+            : velocity.y > 0
+              ? 'down'
+              : 'up';
+      if (!p.paused || p.typing) worldTime += dt * 1000;
+      const animationTime = reduced ? 7000 : worldTime;
       const { x, y } = player.current;
       if (time - lastSave > 750) {
         p.onPosition({ x, y });
         lastSave = time;
       }
-      const object = nearestObject(player.current);
+      let object = nearestObject(player.current);
+      const retained = OBJECTS.find((o) => o.id === lastNear);
+      if (
+        retained &&
+        Math.hypot(x - retained.x, y - retained.y) < retained.radius + 6 &&
+        (!object || object.distance > Math.hypot(x - retained.x, y - retained.y) - 9)
+      )
+        object = { ...retained, distance: Math.hypot(x - retained.x, y - retained.y) };
+      focusedObject = object?.id ?? null;
+      focusAmount += ((object && !p.paused ? 1 : 0) - focusAmount) * Math.min(1, dt * 12);
       if ((object?.id ?? '') !== lastNear) {
         lastNear = object?.id ?? '';
         setNear(object as typeof near);
@@ -90,28 +133,38 @@ export function GameWorld(props: Props) {
         lastRoom = currentRoom;
         setRoom(currentRoom);
       }
-      const cx = Math.round(w >= 640 ? (640 - w) / 2 : Math.max(0, Math.min(640 - w, x - w / 2)));
-      const cy = Math.round(
-        h >= 400 ? (400 - h) / 2 : Math.max(0, Math.min(400 - h, y - h / 2 - 12)),
-      );
+      camera = approachCamera(camera, cameraTarget(player.current, velocity, w, h), dt, reduced);
+      const cx = Math.round(camera.x),
+        cy = Math.round(camera.y);
+      const covered = (x - cx) * scale > parent.clientWidth - 320 && (y - cy) * scale < 430;
+      if (covered !== lastHudOverlap) {
+        lastHudOverlap = covered;
+        p.onHudOverlap(covered);
+      }
       context.clearRect(0, 0, w, h);
       context.fillStyle = '#273f3b';
       context.fillRect(0, 0, w, h);
       context.save();
       context.translate(-cx, -cy);
-      drawWorld(context, time, p.save.decoration);
+      drawWorld(context, animationTime, p.save.decoration);
       const actors = [
         {
-          depth: 132,
+          depth: 137,
           draw: (c: CanvasRenderingContext2D) =>
             drawCharacter(
               c,
-              139,
-              132,
+              150,
+              137,
               { skin: '#d9a278', shirt: '#7897b8', hair: 'short', glasses: false },
-              time,
+              animationTime + 2100,
               false,
-              'down',
+              Math.hypot(x - 150, y - 137) < 68
+                ? x < 130
+                  ? 'left'
+                  : x > 150
+                    ? 'right'
+                    : 'down'
+                : 'down',
             ),
         },
         {
@@ -122,20 +175,21 @@ export function GameWorld(props: Props) {
               451,
               332,
               { skin: '#b07b5d', shirt: '#c78d79', hair: 'curly', glasses: true },
-              time,
+              animationTime + 6800,
               false,
-              'left',
+              Math.hypot(x - 451, y - 332) < 60 ? (x < 451 ? 'left' : 'right') : 'left',
+              'coffee',
             ),
         },
         {
-          depth: 270,
+          depth: 267,
           draw: (c: CanvasRenderingContext2D) =>
             drawCharacter(
               c,
-              120,
-              270,
+              168,
+              267,
               { skin: '#ebbd92', shirt: '#9fa67e', hair: 'bob', glasses: false },
-              time,
+              animationTime + 4400,
               false,
               'up',
               'typing',
@@ -149,28 +203,33 @@ export function GameWorld(props: Props) {
               x,
               y,
               p.save.avatar,
-              time,
-              !!(dx || dy),
+              animationTime,
+              moving,
               direction,
-              time < p.celebration ? 'celebration' : p.typing ? 'typing' : 'idle',
+              time < p.celebration && !reduced ? 'celebration' : p.typing ? 'typing' : 'idle',
+              distance,
             ),
         },
       ];
-      [...furnitureLayers(time, p.save.decoration), ...actors]
+      [...furnitureLayers(animationTime, p.save.decoration), ...actors]
         .sort((a, b) => a.depth - b.depth)
         .forEach((layer) => layer.draw(context));
       const marker = OBJECTS.find((o) => o.id === p.target);
-      if (marker && !p.paused) drawMarker(context, marker.x, marker.y, time);
-      drawAtmosphere(context, time);
-      if (object && !p.paused) {
-        context.fillStyle = '#173e3b';
-        context.fillRect(object.x - 7, object.y - 47, 15, 14);
-        context.strokeStyle = '#e7d29a';
+      if (marker && !p.paused && marker.id !== focusedObject)
+        drawMarker(context, marker.x, marker.y, animationTime);
+      drawAtmosphere(context, animationTime);
+      if (object && focusAmount > 0.05) {
+        context.save();
+        context.globalAlpha = focusAmount;
+        context.strokeStyle = '#f4db9a';
         context.lineWidth = 1;
-        context.strokeRect(object.x - 7.5, object.y - 47.5, 16, 15);
-        context.fillStyle = '#fff0bd';
-        context.font = 'bold 8px monospace';
-        context.fillText('E', object.x - 2, object.y - 36);
+        context.setLineDash([3, 3]);
+        context.lineDashOffset = reduced ? 0 : -animationTime / 180;
+        context.beginPath();
+        context.ellipse(object.x, object.y + 3, 13, 5, 0, 0, Math.PI * 2);
+        context.stroke();
+        context.setLineDash([]);
+        context.restore();
       }
       context.restore();
       frame = scheduleFrame(loop);
@@ -190,8 +249,12 @@ export function GameWorld(props: Props) {
         event.preventDefault();
       keys.current.add(key);
       if (key === 'e' && !event.repeat) {
-        const object = nearestObject(player.current);
-        if (object) latest.current.onInteract(object.id as Interactive);
+        const object = OBJECTS.find((o) => o.id === focusedObject) ?? nearestObject(player.current);
+        if (
+          object &&
+          Math.hypot(player.current.x - object.x, player.current.y - object.y) < object.radius + 6
+        )
+          latest.current.onInteract(object.id as Interactive);
       }
     };
     const up = (event: KeyboardEvent) => keys.current.delete(event.key.toLowerCase());
@@ -240,13 +303,19 @@ export function GameWorld(props: Props) {
         </span>
         <div>
           <span>PIXELBYTE HQ · FLOOR 01</span>
-          <strong>{room}</strong>
+          <strong key={room} className="room-name">
+            {room}
+          </strong>
         </div>
         <kbd>M</kbd>
       </button>
       <div className="world-interact" aria-live="polite">
         {near && !props.paused ? (
-          <button className="interact-prompt" onClick={() => props.onInteract(near.id)}>
+          <button
+            key={near.id}
+            className="interact-prompt"
+            onClick={() => props.onInteract(near.id)}
+          >
             <kbd>E</kbd>
             <span>{near.label}</span>
             <b>Interact</b>

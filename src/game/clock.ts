@@ -1,13 +1,36 @@
 import { isDesktop } from '../lib/platform';
 
-// The native host also needs frames while WebKit's display-linked animation
-// callbacks are suspended. A capped timer keeps the desktop canvas responsive.
+// One display-linked frame drives every canvas and tween. Native WebKit can
+// suspend RAF when a window is inactive, so a watchdog keeps it alive then.
+const callbacks = new Map<number, FrameRequestCallback>();
+let nextId = 0,
+  frame = 0,
+  watchdog = 0;
+function flush(time: number) {
+  cancelAnimationFrame(frame);
+  clearTimeout(watchdog);
+  frame = 0;
+  watchdog = 0;
+  const batch = [...callbacks.values()];
+  callbacks.clear();
+  for (const callback of batch) callback(time);
+}
 export function scheduleFrame(callback: FrameRequestCallback): number {
-  return isDesktop
-    ? window.setTimeout(() => callback(performance.now()), 33)
-    : requestAnimationFrame(callback);
+  const id = ++nextId;
+  callbacks.set(id, callback);
+  if (!frame) {
+    frame = requestAnimationFrame(flush);
+    if (isDesktop)
+      watchdog = window.setTimeout(() => flush(performance.now()), document.hidden ? 100 : 34);
+  }
+  return id;
 }
 export function cancelFrame(id: number) {
-  if (isDesktop) window.clearTimeout(id);
-  else cancelAnimationFrame(id);
+  callbacks.delete(id);
+  if (!callbacks.size) {
+    cancelAnimationFrame(frame);
+    clearTimeout(watchdog);
+    frame = 0;
+    watchdog = 0;
+  }
 }
