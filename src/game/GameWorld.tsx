@@ -1,3 +1,4 @@
+import { drawSeasonReward } from './season-art';
 import { useEffect, useRef, useState } from 'react';
 import { drawWorld, drawCharacter, drawMarker, furnitureLayers, drawAtmosphere } from './art';
 import { canStand, movePlayer, nearestObject, OBJECTS, roomAt } from './world.mjs';
@@ -160,7 +161,75 @@ export function GameWorld(props: Props) {
       context.save();
       context.translate(-cx, -cy);
       drawWorld(context, animationTime, p.save.decoration);
+      if (p.save.checkout.completed.includes('interview')) {
+        context.fillStyle = '#876a3f';
+        context.fillRect(302, 171, 13, 9);
+        context.fillStyle = '#eddba3';
+        context.fillRect(303, 172, 11, 6);
+        context.fillStyle = '#49674c';
+        context.font = '5px monospace';
+        context.fillText('{}', 305, 177);
+        context.fillStyle = '#d9dba8';
+        context.fillRect(310, 58, 43, 10);
+        context.fillStyle = '#355a42';
+        context.font = '5px monospace';
+        context.fillText('#204 SHIPPED', 313, 65);
+      }
+      const earned = Object.entries(p.save.season.episodes).filter(([, v]) =>
+        v.completed.includes('interview'),
+      );
+      earned.forEach(([id], i) =>
+        drawSeasonReward(
+          context,
+          id,
+          236 + (i % 4) * 19,
+          117 - Math.floor(i / 4) * 16,
+          animationTime,
+        ),
+      );
+      if (p.save.season.episodes.lists.completed.includes('interview')) {
+        const rx = 190 + Math.sin(animationTime / 2400) * 24,
+          ry = 310 + Math.cos(animationTime / 2400) * 8;
+        context.fillStyle = '#a7b6ac';
+        context.fillRect(rx, ry, 9, 7);
+        context.fillStyle = '#354458';
+        context.fillRect(rx + 2, ry + 2, 2, 2);
+        context.fillRect(rx + 6, ry + 2, 2, 2);
+      }
       const actors = [
+        ...OBJECTS.filter((o) => ['max', 'theo', 'lia', 'iris', 'victor'].includes(o.id)).map(
+          (o, i) => ({
+            depth: o.y,
+            draw: (c: CanvasRenderingContext2D) =>
+              drawCharacter(
+                c,
+                o.x,
+                o.y,
+                {
+                  skin: ['#b07b5d', '#dca477', '#ebbd92', '#a76e4b', '#d9a278'][i],
+                  shirt: ['#ba9864', '#7897b8', '#c78d79', '#85a789', '#8a82bc'][i],
+                  hair: i % 2 ? 'bob' : 'short',
+                  glasses: i === 1 || i === 4,
+                },
+                animationTime + i * 900,
+                false,
+                'down',
+              ),
+          }),
+        ),
+        {
+          depth: 302,
+          draw: (c: CanvasRenderingContext2D) =>
+            drawCharacter(
+              c,
+              346,
+              302,
+              { skin: '#dca477', shirt: '#8a82bc', hair: 'bob', glasses: true },
+              animationTime + 3200,
+              false,
+              'left',
+            ),
+        },
         {
           depth: 137,
           draw: (c: CanvasRenderingContext2D) =>

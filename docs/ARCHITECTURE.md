@@ -49,3 +49,25 @@ Native storage uses the application support directory. The game has no accounts,
 The game canvas fills the application content area. HUD elements float over the world; all navigation opens modal game overlays. Escape is consumed by the native GameWindow and forwarded as a game event, preventing AppKit from leaving full screen when a dialogue closes. Native full-screen preference is retained across launches. The first launch of the new presentation starts full screen.
 
 The office background is rendered once into a cached pixel canvas. Furniture and characters are composited in depth order, with live monitor indicators, steam, dust, and celebration accents. World geometry and saved positions remain compatible with the first-day save format.
+
+## Checkout mission pipeline (0.4)
+
+`src/lib/checkout.mjs` defines the nine missions, starters, ordered transitions, and save restoration. The arc is stored separately from first-day mission IDs inside the existing version-1 save envelope, so old saves gain empty arc progress without losing first-day rewards. XP is derived from unique completed mission IDs. `CheckoutArc.tsx` renders deterministic interaction types and retains the player’s draft, hints, answers, custom tests, and interview phase. Delivery returns the player to the office; quest markers lead to the next NPC.
+
+`server/pair-java.mjs` parses the supported method into a bounded AST. It does not translate or execute source as JavaScript. Evaluation uses local scopes, integer arithmetic, safe array reads, explicit map methods, nesting limits, source limits, and operation budgets. Native and HTTP endpoints expose the same evaluator at `/api/pair`. The original registration interpreter and optional Docker adapter remain separate.
+
+Functional checks validate the returned indices against the contract instead of comparing against one fixed pair. Hidden checks include empty/singleton inputs, duplicates, negatives, zeros, and changed values. Optimization review counts interpreted operations on no-match arrays of 128 and 256 entries and checks map lookups and measured growth; this is explicitly a controlled check, not a proof for arbitrary programs. The interview score distinguishes correctness, measured efficiency, hidden edge cases, and structured reasoning. Hints make an attempt guided; completing the story does not grant retention mastery.
+
+## Season 1 (0.5)
+
+`season-content.mjs` defines all 60 new mission steps, authored dialogues, editor contracts, four-level hints, QA predictions, review questions and later transfer problems. `season.mjs` controls linear per-episode progression, independent SQL/OOP paths, derived rewards and chronological retention. `SeasonArc` shares coding, five-phase interviews, QA, scorecards and room views; `SeasonLabs` contains the interactive concept experiments. The office adds five colleagues and original code-drawn rewards.
+
+`/api/season` supports browser and native requests. Java uses a fresh compiler workspace and a restricted, metered, memory/time-limited JVM; SQL runs in a killable read-only SQLite child process. The build embeds a compact Java compiler/runtime and the shared curriculum module required by the runner. See [Season 1](SEASON-1.md) for the isolation limits and precise contracts.
+
+Save schema version 1 remains compatible. Season state stores code, answers, hints, custom tests, independent-pass completion counts and retention results. Three missions completed after an independent interview unlock its separate mastery problem. Native save/import and browser import limits are 512 KiB.
+
+## Three save slots (0.6)
+
+`save-slots.mjs` wraps version-1 character saves in a separate three-entry library, normalizes imported progress, and migrates the previous single character into Slot 1. `TitleScreen` owns title, slot selection, confirmation and uncommitted character customization views. Gameplay stays unmounted until a slot has been selected and persisted.
+
+The frontend serializes library writes and waits before switching sessions. `SaveLibraryStore.swift` stores the native library atomically in `save-slots.json`, treats `first-day.json` as read-only migration input, and preserves unreadable files. Native quit/window-close requests ask the frontend to flush; a failed or in-flight save cancels termination. See [save slots](SAVE-SLOTS.md).

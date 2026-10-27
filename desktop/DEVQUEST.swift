@@ -38,18 +38,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     var assets: LocalAssets!
     var runtime: URL!
     var runner: URL!
-    var cachedSave: Data?
+    var saves: SaveLibraryStore!
     var jobs = 0
+    var terminationPending = false
+    var allowTermination = false
     let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("DEVQUEST", isDirectory: true)
-    var saveURL: URL { support.appendingPathComponent("first-day.json") }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard let resources = Bundle.main.resourceURL else { NSApp.terminate(nil); return }
         runtime = resources.appendingPathComponent("runtime/node")
         runner = resources.appendingPathComponent("game/server/desktop-runner.mjs")
-        do { try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true) }
-        catch { showError("Your save folder could not be created", error.localizedDescription) }
-        cachedSave = try? Data(contentsOf: saveURL)
+        saves = SaveLibraryStore(support: support)
+        do { try saves.load() } catch { /* The title screen reports the preserved-file error. */ }
         let config = WKWebViewConfiguration()
         assets = LocalAssets(root: resources.appendingPathComponent("game/dist"))
         config.setURLSchemeHandler(assets, forURLScheme: "devquest")
@@ -62,7 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         let gameWindow = GameWindow(contentRect: NSRect(x: 0, y: 0, width: 1440, height: 900), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         gameWindow.gameView = webView
         window = gameWindow
-        window.title = "DEVQUEST — Your first day"
+        window.title = "DEVQUEST — The Junior Developer Chronicles"
         window.minSize = NSSize(width: 980, height: 680)
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
@@ -93,6 +93,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         appMenu.addItem(withTitle: "Quit DEVQUEST", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let fileItem = NSMenuItem(); menu.addItem(fileItem)
         let file = NSMenu(title: "File"); fileItem.submenu = file
+        let slotsItem = file.addItem(withTitle: "Main Menu & Save Slots", action: #selector(mainMenu), keyEquivalent: "m")
+        slotsItem.target = self
+        file.addItem(.separator())
         file.addItem(withTitle: "Export Progress…", action: #selector(exportProgress), keyEquivalent: "e")
         file.addItem(withTitle: "Import Progress…", action: #selector(importProgress), keyEquivalent: "i")
         file.addItem(.separator())
@@ -114,15 +117,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         for submenu in [appMenu, file, help] { for item in submenu.items where item.action == #selector(about) || item.action == #selector(exportProgress) || item.action == #selector(importProgress) || item.action == #selector(handbook) { item.target = self } }
     }
 
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options: [.applicationName: "DEVQUEST", .applicationVersion: "0.3.0 · First Day", .credits: NSAttributedString(string: "A cozy programming RPG by Ioana Ghinet.\nBuilt with Swift, WebKit, React, and SQLite.\nNo account. No AI answers. Your own curiosity.")]) }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options: [.applicationName: "DEVQUEST", .applicationVersion: "0.6.0 · Three Save Slots", .credits: NSAttributedString(string: "A cozy programming RPG by Ioana Ghinet.\nBuilt with Swift, WebKit, React, and SQLite.\nNo account. No AI answers. Your own curiosity.")]) }
+    @objc func mainMenu() { webView.evaluateJavaScript("window.dispatchEvent(new Event('devquest:title'))", completionHandler: nil) }
     @objc func handbook() { webView.evaluateJavaScript("window.dispatchEvent(new Event('devquest:help'))", completionHandler: nil) }
     @objc func toggleFullScreen() { window.toggleFullScreen(nil) }
     func windowDidEnterFullScreen(_ notification: Notification) { UserDefaults.standard.set(true, forKey: "StartFullScreen"); publishFullScreen(true) }
     func windowDidExitFullScreen(_ notification: Notification) { UserDefaults.standard.set(false, forKey: "StartFullScreen"); publishFullScreen(false) }
     func publishFullScreen(_ enabled: Bool) { webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('devquest:fullscreen',{detail:{fullscreen:\(enabled ? "true" : "false")}}))", completionHandler: nil) }
     @objc func exportProgress() {
-        guard let data = cachedSave else { showError("No progress to export yet", "Create your developer to start your first day."); return }
-        let panel = NSSavePanel(); panel.nameFieldStringValue = "devquest-first-day.json"; panel.allowedContentTypes = [.json]
+        guard let data = saves.selectedSave else { showError("No progress to export yet", "Create your developer to start your first day."); return }
+        let panel = NSSavePanel(); panel.nameFieldStringValue = "devquest-character.json"; panel.allowedContentTypes = [.json]
         panel.beginSheetModal(for: window) { result in
             if result == .OK, let url = panel.url { do { try data.write(to: url, options: .atomic) } catch { self.showError("Export failed", error.localizedDescription) } }
         }
@@ -133,9 +137,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             guard result == .OK, let url = panel.url else { return }
             do {
                 let data = try Data(contentsOf: url)
-                guard data.count < 64000, let save = try JSONSerialization.jsonObject(with: data) as? [String: Any], save["version"] as? Int == 1, save["onboarded"] is Bool else { throw NSError(domain: "DEVQUEST", code: 1, userInfo: [NSLocalizedDescriptionKey: "Choose a valid DEVQUEST save file."]) }
-                self.cachedSave = data; try data.write(to: self.saveURL, options: .atomic)
-                self.webView.reload()
+                guard data.count < 524288, let save = try JSONSerialization.jsonObject(with: data) as? [String: Any], save["version"] as? Int == 1, save["onboarded"] is Bool else { throw NSError(domain: "DEVQUEST", code: 1, userInfo: [NSLocalizedDescriptionKey: "Choose a valid DEVQUEST save file."]) }
+                guard let json = String(data: try JSONSerialization.data(withJSONObject: save), encoding: .utf8) else { throw URLError(.cannotParseResponse) }
+                self.webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('devquest:import',{detail:\(json)}))", completionHandler: nil)
             } catch { self.showError("Could not import this save", error.localizedDescription) }
         }
     }
@@ -152,25 +156,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         let payload = body["payload"] as? [String: Any] ?? [:]
         if path == "/api/app/state" { reply(id, ["ok": true, "data": ["fullscreen": window.styleMask.contains(.fullScreen)]]); return }
         if path == "/api/app/fullscreen" { let next = !window.styleMask.contains(.fullScreen); window.toggleFullScreen(nil); reply(id, ["ok": true, "data": ["fullscreen": next]]); return }
-        if path == "/api/app/quit" { reply(id, ["ok": true]); DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { NSApp.terminate(nil) }; return }
-        if path == "/api/save/load" {
-            reply(id, ["ok": true, "data": (cachedSave.flatMap { try? JSONSerialization.jsonObject(with: $0) }) ?? NSNull()]); return
+        if path == "/api/app/cancel-quit" { if terminationPending { terminationPending=false;NSApp.reply(toApplicationShouldTerminate:false) };reply(id,["ok":true]);return }
+        if path == "/api/app/quit" { reply(id, ["ok": true]); allowTermination=true; DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { if self.terminationPending { NSApp.reply(toApplicationShouldTerminate:true) } else { NSApp.terminate(nil) } }; return }
+        if path == "/api/slots/load" {
+            do { reply(id,["ok":true,"data":try saves.payload()]) }
+            catch { reply(id,["ok":false,"error":error.localizedDescription]) }
+            return
         }
-        if path == "/api/save/store" {
+        if path == "/api/slots/store" {
             do {
-                guard let save = payload["save"] as? [String: Any], save["version"] as? Int == 1 else { throw URLError(.badURL) }
-                let data = try JSONSerialization.data(withJSONObject: save, options: [.sortedKeys])
-                guard data.count < 64000 else { throw URLError(.dataLengthExceedsMaximum) }
-                try data.write(to: saveURL, options: .atomic); cachedSave = data; reply(id, ["ok": true, "data": true])
-            } catch { reply(id, ["ok": false, "error": "Progress could not be saved. Export a backup from the File menu."]) }
+                guard let library=payload["library"] as? [String:Any] else { throw URLError(.cannotParseResponse) }
+                try saves.store(library)
+                reply(id,["ok":true,"data":true])
+            } catch { reply(id,["ok":false,"error":"Save slots could not be written. Your previous saves are still on disk. Export a backup before quitting."]) }
             return
         }
         if path == "/api/save/export" { exportProgress(); reply(id, ["ok": true]); return }
         if path == "/api/save/import" { importProgress(); reply(id, ["ok": true]); return }
-        guard ["/api/health", "/api/java", "/api/sql"].contains(path), jobs < 2,
-              let input = try? JSONSerialization.data(withJSONObject: ["path": path, "payload": payload]), input.count <= 14000 else { reply(id, ["ok": false, "error": "The runtime is busy or the request is too large."]); return }
+        guard ["/api/health", "/api/java", "/api/sql", "/api/pair", "/api/season"].contains(path), jobs < 2,
+              let input = try? JSONSerialization.data(withJSONObject: ["path": path, "payload": payload]), input.count <= 20000 else { reply(id, ["ok": false, "error": "The runtime is busy or the request is too large."]); return }
         let process = Process(); process.executableURL = runtime; process.arguments = [runner.path]
-        process.environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin", "JAVA_RUNNER": "practice", "NODE_NO_WARNINGS": "1"]
+        process.environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin", "JAVA_RUNNER": "practice", "NODE_NO_WARNINGS": "1", "DEVQUEST_JAVA_HOME": runner.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("java-runtime").path]
         let stdin = Pipe(), stdout = Pipe(), stderr = Pipe(); process.standardInput = stdin; process.standardOutput = stdout; process.standardError = stderr
         do { try process.run() } catch { reply(id, ["ok": false, "error": "The bundled runtime could not start: \(error.localizedDescription)"]); return }
         jobs += 1; processes[id] = process
@@ -195,12 +201,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         let panel = NSOpenPanel(); panel.allowsMultipleSelection = false; panel.canChooseDirectories = false; panel.allowedContentTypes = [.json]
         panel.beginSheetModal(for: window) { result in completionHandler(result == .OK ? panel.urls : nil) }
     }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if allowTermination || webView == nil { return .terminateNow }
+        if !terminationPending {
+            terminationPending=true
+            webView.evaluateJavaScript("window.dispatchEvent(new Event('devquest:quit'))") { _,error in
+                if let error=error { self.terminationPending=false;NSApp.reply(toApplicationShouldTerminate:false);self.showError("Could not finish saving",error.localizedDescription) }
+            }
+        }
+        return .terminateLater
+    }
+    func windowShouldClose(_ sender: NSWindow) -> Bool { if allowTermination { return true };NSApp.terminate(nil);return false }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationWillTerminate(_ notification: Notification) { for process in processes.values where process.isRunning { process.terminate() } }
 }
 
-let application = NSApplication.shared
-let delegate = AppDelegate()
-application.delegate = delegate
-application.setActivationPolicy(.regular)
-application.run()
+@main struct DEVQUESTMain {
+    static func main() {
+        let application = NSApplication.shared
+        let delegate = AppDelegate()
+        application.delegate = delegate
+        application.setActivationPolicy(.regular)
+        withExtendedLifetime(delegate) { application.run() }
+    }
+}

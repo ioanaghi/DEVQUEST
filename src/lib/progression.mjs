@@ -1,3 +1,5 @@
+import { freshSeason, restoreSeason, seasonXP, nextSeason } from './season.mjs';
+import { freshCheckout, restoreCheckout, CHECKOUT_MISSIONS } from './checkout.mjs';
 export const SAVE_KEY = 'devquest.save.v1';
 export const JAVA_STARTER = `public static boolean canRegister(int age) {
     return age > 18;
@@ -13,6 +15,8 @@ export const REWARDS = {
 export function freshState() {
   return {
     version: 1,
+    checkout: freshCheckout(),
+    season: freshSeason(),
     name: '',
     avatar: { skin: '#dca477', hair: 'short', shirt: '#8a82bc', glasses: false },
     onboarded: false,
@@ -31,10 +35,20 @@ export function freshState() {
 }
 
 export function totals(state) {
-  return state.completed.reduce(
+  const firstDay = state.completed.reduce(
     (sum, key) => ({ xp: sum.xp + REWARDS[key].xp, coins: sum.coins + REWARDS[key].coins }),
     { xp: 0, coins: 0 },
   );
+  return {
+    xp:
+      seasonXP(state) +
+      firstDay.xp +
+      CHECKOUT_MISSIONS.filter((m) => state.checkout?.completed.includes(m.id)).reduce(
+        (n, m) => n + m.xp,
+        0,
+      ),
+    coins: firstDay.coins,
+  };
 }
 
 export function completeMission(state, mission) {
@@ -97,9 +111,27 @@ export function quest(state) {
       number: '03',
       label: 'A LITTLE MORE YOU',
     };
+  const next = CHECKOUT_MISSIONS.find((m) => !state.checkout?.completed.includes(m.id));
+  if (next)
+    return {
+      title: next.title,
+      objective: `${next.npc.split(' · ')[0]} is waiting at ${next.location.toLowerCase()}.`,
+      target: next.target,
+      number: '03',
+      label: 'THE CHECKOUT INCIDENT',
+    };
+  const seasonNext = nextSeason(state);
+  if (seasonNext)
+    return {
+      title: seasonNext.mission.title,
+      objective: `${seasonNext.mission.npc} is waiting. Open the quest log for ${seasonNext.episode.title}.`,
+      target: seasonNext.mission.target,
+      number: String(seasonNext.episode.number).padStart(2, '0'),
+      label: seasonNext.episode.title.toUpperCase(),
+    };
   return {
-    title: 'A good first day',
-    objective: 'Your first chapter is complete. Take a coffee break.',
+    title: 'BentoCart is ready for release',
+    objective: 'Season 1 delivered. Revisit adventures and finish independent mastery checks.',
     target: 'coffee',
     number: '✓',
     label: 'CHAPTER COMPLETE',
@@ -127,8 +159,23 @@ export function restoreState(raw) {
     const safeString = (value, fallback, max) =>
       typeof value === 'string' ? value.slice(0, max) : fallback;
     const color = (value, fallback) => (/^#[0-9a-f]{6}$/i.test(value ?? '') ? value : fallback);
+    const checkout = restoreCheckout(
+      s.checkout,
+      valid.length === 3 && s.claimed === true && ['plant', 'cat', 'lamp'].includes(s.decoration),
+    );
+    const season = restoreSeason(s.season, {
+      ...base,
+      checkout,
+      completed: valid,
+      claimed: valid.length === 3 && s.claimed === true,
+    });
     return {
       ...base,
+      season,
+      checkout: restoreCheckout(
+        s.checkout,
+        valid.length === 3 && s.claimed === true && ['plant', 'cat', 'lamp'].includes(s.decoration),
+      ),
       name: safeString(s.name, '', 24),
       onboarded: s.onboarded === true,
       metAlex,

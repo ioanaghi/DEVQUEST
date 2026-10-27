@@ -1,3 +1,24 @@
+import { TitleScreen } from './components/TitleScreen';
+import {
+  freshLibrary,
+  restoreLibrary,
+  saveToSlot,
+  selectSlot,
+  deleteSlot,
+  encodeLibrary,
+  validateSave,
+  SLOT_KEY,
+  LEGACY_KEY,
+} from './lib/save-slots.mjs';
+import { SeasonArc } from './components/SeasonArc';
+import { EPISODES, RETENTION } from './lib/season-content.mjs';
+import {
+  nextSeason,
+  completeSeason,
+  certify,
+  seasonUnlocked,
+  retentionUnlocked,
+} from './lib/season.mjs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { worldArtLoaded } from './game/art';
 import { GameWorld } from './game/GameWorld';
@@ -5,19 +26,19 @@ import { AvatarPreview } from './components/AvatarPreview';
 import { DialogueText } from './components/DialogueText';
 import { DeskScene } from './components/DeskScene';
 import { Modal, requestOverlayClose } from './components/Modal';
+import { CheckoutArc } from './components/CheckoutArc';
+import {
+  CHECKOUT_MISSIONS,
+  checkoutUnlocked,
+  checkoutStatus,
+  completeCheckout,
+} from './lib/checkout.mjs';
 import { Workspace } from './components/Workspace';
 import { GameIcon } from './components/GameIcon';
 import { OBJECTS, SOLIDS } from './game/world.mjs';
-import {
-  freshState,
-  restoreState,
-  SAVE_KEY,
-  completeMission,
-  totals,
-  quest,
-} from './lib/progression.mjs';
+import { freshState, restoreState, completeMission, totals, quest } from './lib/progression.mjs';
 import { CHAPTERS } from './lib/content';
-import type { Interactive, Mission, Panel, Save } from './types';
+import type { Interactive, Mission, Panel, Save, SaveLibrary } from './types';
 import { cue, setSoundEnabled } from './game/sound';
 import { isDesktop, request } from './lib/platform';
 
@@ -28,18 +49,38 @@ type Dialogue = {
   action?: string;
   finish?: () => void;
 };
-function initialSave(): Save {
+function initialLibrary(): { library: SaveLibrary; error: string } {
+  if (isDesktop) return { library: freshLibrary() as SaveLibrary, error: '' };
   try {
-    return restoreState(localStorage.getItem(SAVE_KEY)) as Save;
-  } catch {
-    return freshState() as Save;
+    const slots = localStorage.getItem(SLOT_KEY);
+    return {
+      library: restoreLibrary(
+        slots !== null ? slots : localStorage.getItem(LEGACY_KEY),
+      ) as SaveLibrary,
+      error: '',
+    };
+  } catch (error) {
+    return {
+      library: freshLibrary() as SaveLibrary,
+      error: error instanceof Error ? error.message : 'Saved progress could not be read.',
+    };
   }
 }
 
 export default function App() {
-  const [save, setSave] = useState<Save>(initialSave);
+  const [boot] = useState(initialLibrary);
+  const [library, setLibrary] = useState<SaveLibrary>(boot.library);
+  const [loadError, setLoadError] = useState(!!boot.error);
+  const [slotError, setSlotError] = useState(boot.error);
+  const [playing, setPlaying] = useState(false);
+  const [slotBusy, setSlotBusy] = useState(false);
+  const [pendingImport, setPendingImport] = useState<Save | null>(null);
+  const writeQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const [save, setSave] = useState<Save>(() => freshState() as Save);
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState(0);
+  const [seasonEpisode, setSeasonEpisode] = useState<string | undefined>();
+  const [checkoutIndex, setCheckoutIndex] = useState<number | undefined>(undefined);
   const [panel, setPanel] = useState<Panel>(null);
   const [dialogue, setDialogue] = useState<Dialogue | null>(null);
   const [dialoguePage, setDialoguePage] = useState(0);
@@ -48,48 +89,61 @@ export default function App() {
   const [runtime, setRuntime] = useState('practice');
   const [apiStatus, setApiStatus] = useState<'checking' | 'ready' | 'offline'>('checking');
   const [celebration, setCelebration] = useState(0);
-  const [confirmRestart, setConfirmRestart] = useState(false);
-  const [draftName, setDraftName] = useState(save.name);
+  const [pastedSave, setPastedSave] = useState('');
   const [fullScreen, setFullScreen] = useState(isDesktop);
   const [questCollapsed, setQuestCollapsed] = useState(false);
   const [hudOverlap, setHudOverlap] = useState(false);
   const progress = totals(save),
     active = quest(save),
     finished = save.completed.length === 3;
+  const seasonClock =
+    save.checkout.completed.length === 9
+      ? ((
+          {
+            warehouse: ['MON · WAREHOUSE', '10:15'],
+            traffic: ['TUE · ON CALL', '00:00'],
+            stack: ['TUE · EDITOR', '11:20'],
+            binary: ['WED · RELEASES', '09:30'],
+            lists: ['WED · ROUTES', '15:10'],
+            recursion: ['THU · ARCHIVE', '10:40'],
+            sql2: ['THU · SUPPORT', '14:00'],
+            oop: ['FRI · ARCHITECTURE', '15:30'],
+          } as Record<string, string[]>
+        )[nextSeason(save)?.episode.id ?? ''] ?? ['FRI · RELEASE DAY', '17:00'])
+      : null;
   const toastTimer = useRef(0);
   useEffect(() => setSoundEnabled(save.sound), [save.sound]);
+  const persistLibrary = useCallback(async (next: SaveLibrary) => {
+    const encoded = encodeLibrary(next);
+    const write = writeQueue.current
+      .catch(() => {})
+      .then(async () => {
+        if (isDesktop) await request('/api/slots/store', { library: next });
+        else localStorage.setItem(SLOT_KEY, encoded);
+      });
+    writeQueue.current = write;
+    await write;
+    setStorageError(false);
+  }, []);
   useEffect(() => {
-    if (!ready) return;
-    const timer = setTimeout(() => {
-      if (isDesktop) {
-        void request('/api/save/store', { save })
-          .then(() => setStorageError(false))
-          .catch(() => setStorageError(true));
-      } else {
-        try {
-          localStorage.setItem(SAVE_KEY, JSON.stringify(save));
-          setStorageError(false);
-        } catch {
-          setStorageError(true);
-        }
-      }
+    if (!ready || !playing || loadError || library.activeSlot === null || slotBusy) return;
+    const timer = window.setTimeout(() => {
+      void persistLibrary(saveToSlot(library, library.activeSlot, save) as SaveLibrary).catch(() =>
+        setStorageError(true),
+      );
     }, 200);
-    return () => clearTimeout(timer);
-  }, [save, ready]);
+    return () => window.clearTimeout(timer);
+  }, [save, library, ready, playing, loadError, slotBusy, persistLibrary]);
   useEffect(() => {
     const flush = () => {
-      if (!ready) return;
-      if (isDesktop) {
-        void request('/api/save/store', { save }).catch(() => {});
-      } else {
-        try {
-          localStorage.setItem(SAVE_KEY, JSON.stringify(save));
-        } catch {}
-      }
+      if (ready && playing && !loadError && library.activeSlot !== null)
+        void persistLibrary(saveToSlot(library, library.activeSlot, save) as SaveLibrary).catch(
+          () => setStorageError(true),
+        );
     };
     window.addEventListener('pagehide', flush);
     return () => window.removeEventListener('pagehide', flush);
-  }, [save, ready]);
+  }, [save, library, ready, playing, loadError, persistLibrary]);
   useEffect(() => {
     let active = true;
     void request('/api/health')
@@ -108,18 +162,22 @@ export default function App() {
           if (active) setFullScreen(state.fullscreen);
         })
         .catch(() => {});
-      void request('/api/save/load')
+      void request('/api/slots/load')
         .then(async (data) => {
           await worldArtLoaded;
           if (active) {
-            const restored = restoreState(data) as Save;
-            setSave(restored);
-            setDraftName(restored.name);
+            setLibrary(restoreLibrary(data) as SaveLibrary);
+            setLoadError(false);
+            setSlotError('');
             setReady(true);
           }
         })
-        .catch(() => {
+        .catch((error) => {
           if (active) {
+            setLoadError(true);
+            setSlotError(
+              error instanceof Error ? error.message : 'Save slots could not be loaded.',
+            );
             setStorageError(true);
             setReady(true);
           }
@@ -134,13 +192,24 @@ export default function App() {
     };
   }, []);
   useEffect(() => {
-    const help = () => setPanel('help');
+    const help = () => {
+      if (playing) setPanel('help');
+    };
     window.addEventListener('devquest:help', help);
     return () => window.removeEventListener('devquest:help', help);
-  }, []);
+  }, [playing]);
   useEffect(() => {
     const shortcuts = (event: KeyboardEvent) => {
-      if (!save.onboarded || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (
+        !playing ||
+        slotBusy ||
+        !save.onboarded ||
+        event.repeat ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey
+      )
+        return;
       if (
         event.target instanceof HTMLElement &&
         (['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName) ||
@@ -172,16 +241,16 @@ export default function App() {
       window.removeEventListener('devquest:fullscreen', fullscreen);
       window.removeEventListener('fullscreenchange', fullscreen);
     };
-  }, [save.onboarded]);
+  }, [save.onboarded, playing, slotBusy]);
   useEffect(() => {
     const escape = () => {
-      if (!save.onboarded) return;
+      if (!playing || slotBusy || !save.onboarded) return;
       if (document.querySelector('dialog[open]')) requestOverlayClose();
       else setPanel('menu');
     };
     window.addEventListener('devquest:escape', escape);
     return () => window.removeEventListener('devquest:escape', escape);
-  }, [save.onboarded, dialogue]);
+  }, [save.onboarded, dialogue, playing, slotBusy]);
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
   const update = useCallback((patch: Partial<Save>) => setSave((s) => ({ ...s, ...patch })), []);
   const close = useCallback(() => setPanel(null), []);
@@ -200,12 +269,179 @@ export default function App() {
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(''), 4800);
   };
+  const snapshotLibrary = () =>
+    playing && library.activeSlot !== null
+      ? (saveToSlot(library, library.activeSlot, save) as SaveLibrary)
+      : library;
+  const reportSlotError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : 'Progress could not be saved.';
+    setSlotError(message);
+    setStorageError(true);
+    return message;
+  };
+  const enterGame = (next: SaveLibrary, index: number) => {
+    setLibrary(next);
+    setSave(next.slots[index]!.save);
+    setSession((s) => s + 1);
+    setPanel(null);
+    setDialogue(null);
+    setCheckoutIndex(undefined);
+    setSeasonEpisode(undefined);
+    setToast('');
+    setQuestCollapsed(false);
+    setHudOverlap(false);
+    setPendingImport(null);
+    setSlotError('');
+    setPlaying(true);
+  };
+  const loadSlot = async (index: number) => {
+    if (slotBusy || loadError) return;
+    setSlotBusy(true);
+    try {
+      const next = selectSlot(library, index) as SaveLibrary;
+      await persistLibrary(next);
+      enterGame(next, index);
+    } catch (error) {
+      reportSlotError(error);
+    } finally {
+      setSlotBusy(false);
+    }
+  };
+  const createSlot = async (index: number, character: Save) => {
+    if (slotBusy || loadError) return;
+    setSlotBusy(true);
+    try {
+      const next = saveToSlot(library, index, character) as SaveLibrary;
+      await persistLibrary(next);
+      enterGame(next, index);
+    } catch (error) {
+      reportSlotError(error);
+    } finally {
+      setSlotBusy(false);
+    }
+  };
+  const resetSlot = async (index: number) => {
+    if (slotBusy || loadError) return;
+    setSlotBusy(true);
+    try {
+      const next = deleteSlot(library, index) as SaveLibrary;
+      await persistLibrary(next);
+      setLibrary(next);
+      setSlotError('');
+    } catch (error) {
+      reportSlotError(error);
+    } finally {
+      setSlotBusy(false);
+    }
+  };
+  const returnToTitle = async () => {
+    if (slotBusy || loadError) return false;
+    setSlotBusy(true);
+    try {
+      const next = snapshotLibrary();
+      await persistLibrary(next);
+      setLibrary(next);
+      setPlaying(false);
+      setPanel(null);
+      setDialogue(null);
+      setToast('');
+      setSlotError('');
+      return true;
+    } catch (error) {
+      notify(reportSlotError(error));
+      return false;
+    } finally {
+      setSlotBusy(false);
+    }
+  };
+  const stageImport = async (raw: unknown) => {
+    try {
+      const imported = validateSave(raw) as Save;
+      if (!imported.onboarded) throw new Error('Choose a backup with a completed character.');
+      if (playing && !(await returnToTitle())) return;
+      setPendingImport(imported);
+      setPanel(null);
+      setSlotError('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'That backup could not be read.';
+      setSlotError(message);
+      if (playing) notify(message);
+    }
+  };
+  useEffect(() => {
+    const title = () => {
+      void returnToTitle();
+    };
+    const imported = (event: Event) => {
+      void stageImport((event as CustomEvent).detail);
+    };
+    const quitting = () => {
+      if (slotBusy) {
+        void request('/api/app/cancel-quit');
+        return;
+      }
+      if (ready) void quitGame();
+      else void request('/api/app/quit');
+    };
+    window.addEventListener('devquest:quit', quitting);
+    window.addEventListener('devquest:title', title);
+    window.addEventListener('devquest:import', imported);
+    return () => {
+      window.removeEventListener('devquest:quit', quitting);
+      window.removeEventListener('devquest:title', title);
+      window.removeEventListener('devquest:import', imported);
+    };
+  }, [ready, playing, save, library, slotBusy, loadError]);
   const chime = () => cue('reward');
   const talk = (d: Dialogue) => {
     setDialoguePage(0);
     setDialogue(d);
   };
   const interact = (id: Interactive) => {
+    const seasonNext = nextSeason(save);
+    if (seasonNext?.mission.target === id && save.checkout.completed.length === 9) {
+      setSeasonEpisode(seasonNext.episode.id);
+      setPanel('season');
+      return;
+    }
+    if (['max', 'theo', 'lia', 'iris', 'victor'].includes(id)) {
+      const episode = EPISODES.find(
+        (e) => seasonUnlocked(save, e.id) && e.missions.some((m) => m.target === id),
+      );
+      if (episode) {
+        setSeasonEpisode(episode.id);
+        setPanel('season');
+        return;
+      }
+      talk({
+        title: 'The next BentoCart release',
+        speaker: OBJECTS.find((o) => o.id === id)?.label ?? id,
+        text: [
+          'We have more work ahead. Finish the current lead, or explore the independent SQL and OOP study paths in your quest log.',
+        ],
+      });
+      return;
+    }
+    const checkoutMission = CHECKOUT_MISSIONS[save.checkout.completed.length];
+    if (checkoutUnlocked(save) && checkoutMission?.target === id) {
+      setCheckoutIndex(undefined);
+      setPanel('checkout');
+      return;
+    }
+    if (id === 'nora' || id === 'eva') {
+      talk({
+        title: id === 'nora' ? 'BentoCart is counting on us.' : 'A quiet interview table',
+        speaker: id === 'nora' ? 'Nora · Product Manager' : 'Eva · Tech Lead',
+        text: [
+          save.checkout.completed.length === 9
+            ? 'The checkout fix is delivered. Thanks for testing, explaining, and shipping it. Revisit the Checkout Incident in your quest log whenever you like.'
+            : checkoutUnlocked(save)
+              ? 'Follow the current lead in your quest log. We will meet here when your next mission is ready.'
+              : 'Welcome! Finish your first-day tickets and collect your desk gift. Then we have a checkout incident to investigate together.',
+        ],
+      });
+      return;
+    }
     if (id === 'alex') {
       if (!save.metAlex)
         talk({
@@ -246,7 +482,9 @@ export default function App() {
           speaker: 'Alex · Senior developer',
           text: [
             save.claimed
-              ? 'Make yourself at home. Keep a note of what you learned today — future you will appreciate it.'
+              ? save.checkout.completed.length === 9
+                ? 'The BentoCart checkout fix is shipped. You tested it, explained it, and delivered it. Our team board has the update. Nice work.'
+                : 'Nora has a new checkout ticket for us after you place your desk gift. Follow the lead in your quest log.'
               : save.completed.includes('java')
                 ? 'You’ve got the debugging instinct. Head to the training room on the right. The SQL terminal has a fresh investigation waiting.'
                 : 'Try the inputs just below, at, and above the boundary. When a test fails, that’s information. Your workstation is ready whenever you are.',
@@ -285,10 +523,10 @@ export default function App() {
     else if (id === 'maya')
       talk({
         title: 'Good things take iteration',
-        speaker: 'Maya · Product designer',
+        speaker: 'Maya · QA Engineer',
         text: [
-          `Oh hey, ${save.name || 'new developer'}! I’m Maya. If a button feels weird or a screen is confusing, that’s probably my next ticket.`,
-          'A little secret: my first design had twelve primary buttons. Your first attempt is allowed to be a first attempt. Welcome to the team.',
+          `Oh hey, ${save.name || 'new developer'}! I’m Maya. If a function breaks on an unexpected input, that’s probably my next ticket.`,
+          'Try an empty input, a duplicate, and a boundary value. Your first attempt is allowed to be a first attempt. Welcome to the team.',
         ],
       });
     else
@@ -296,7 +534,14 @@ export default function App() {
         title: 'The team noticeboard',
         speaker: 'PixelByte people ops',
         text: [
-          'Friday demo day · Bring something you learned, something you broke, or both. Especially both.',
+          EPISODES.every((e) => save.season.episodes[e.id].completed.length === e.missions.length)
+            ? 'RELEASE SHIPPED · BentoCart Season 1. Checkout, warehouse, monitoring, editor, releases, routes, archives, dashboard and payment extensions are ready. Thank you for collaborating, testing and explaining every fix.'
+            : save.checkout.completed.length === 9
+              ? 'SHIPPED · BentoCart checkout matching · Ticket #204 delivered. Thanks to our newest developer for the fix, tests, and review!'
+              : 'Friday demo day · Bring something you learned, something you broke, or both. Especially both.',
+          ...EPISODES.filter(
+            (e) => save.season.episodes[e.id].completed.length === e.missions.length,
+          ).map((e) => `${e.title}: delivered. ${e.room} is open for practice.`),
           'Reminder: the office plants have been renamed. Please refer to the large fern as “Fernando” in all future standups.',
         ],
       });
@@ -316,33 +561,25 @@ export default function App() {
   };
   const exportSave = () => {
     if (isDesktop) {
-      void request('/api/save/store', { save })
+      void persistLibrary(snapshotLibrary())
         .then(() => request('/api/save/export'))
-        .catch(() => notify('Your save could not be exported. Try the File menu.'));
+        .catch((error) => notify(reportSlotError(error)));
       return;
     }
     const blob = new Blob([JSON.stringify(save, null, 2)], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'devquest-first-day.json';
+    link.download = `devquest-slot-${(library.activeSlot ?? 0) + 1}.json`;
     link.click();
     URL.revokeObjectURL(link.href);
   };
   const importSave = async (file?: File) => {
     if (!file) return;
-    if (file.size > 64000) {
-      notify('That save file is too large.');
-      return;
-    }
     try {
-      const raw = JSON.parse(await file.text());
-      if (raw.version !== 1 || typeof raw.onboarded !== 'boolean') throw new Error();
-      setSave(restoreState(raw) as Save);
-      setSession((s) => s + 1);
-      setPanel(null);
-      notify('Your first day, restored.');
-    } catch {
-      notify('That file is not a valid DEVQUEST save.');
+      if (file.size > 524288) throw new Error('That backup exceeds 512 KiB.');
+      await stageImport(JSON.parse(await file.text()));
+    } catch (error) {
+      notify(reportSlotError(error));
     }
   };
 
@@ -351,7 +588,7 @@ export default function App() {
       <div className="desktop-loading">
         <span className="brand-icon">&lt;∕&gt;</span>
         <h1>Welcome back to PixelByte.</h1>
-        <p>Unpacking your first day…</p>
+        <p>Opening your save slots…</p>
       </div>
     );
 
@@ -377,13 +614,35 @@ export default function App() {
     }
   };
   const quitGame = async () => {
+    setSlotBusy(true);
     try {
-      await request('/api/save/store', { save });
+      if (!loadError) await persistLibrary(snapshotLibrary());
       await request('/api/app/quit');
-    } catch {
-      notify('Save could not finish. Export a backup before quitting.');
+    } catch (error) {
+      const message = reportSlotError(error);
+      if (playing) notify(message);
+      if (isDesktop) void request('/api/app/cancel-quit');
+    } finally {
+      setSlotBusy(false);
     }
   };
+  if (!playing)
+    return (
+      <TitleScreen
+        library={library}
+        busy={slotBusy}
+        error={slotError}
+        loadError={loadError}
+        pendingImport={pendingImport}
+        onLoad={loadSlot}
+        onCreate={createSlot}
+        onDelete={resetSlot}
+        onCancelImport={() => setPendingImport(null)}
+        onImport={stageImport}
+        onQuit={isDesktop ? () => void quitGame() : undefined}
+        onRetry={() => window.location.reload()}
+      />
+    );
 
   return (
     <div className="game-app polished-edition">
@@ -397,7 +656,7 @@ export default function App() {
       <GameWorld
         key={session}
         save={save}
-        paused={!save.onboarded || !!panel || !!dialogue}
+        paused={slotBusy || !save.onboarded || !!panel || !!dialogue}
         target={active.target}
         celebration={celebration}
         typing={panel === 'java' || panel === 'filter' || panel === 'join'}
@@ -416,10 +675,14 @@ export default function App() {
             <strong>{save.name || 'New developer'}</strong>
             <span>{finished ? 'Junior Developer' : 'Developer Intern'}</span>
             <div className="hud-xp" aria-label={`${progress.xp} experience points`}>
-              <i style={{ width: `${finished ? (progress.xp - 400) / 4 : progress.xp / 4}%` }} />
+              <i
+                style={{
+                  width: `${Math.min(100, finished ? ((progress.xp - 400) % 400) / 4 : progress.xp / 4)}%`,
+                }}
+              />
             </div>
             <small>
-              {progress.xp} / {finished ? '800' : '400'} XP
+              {progress.xp} / {finished ? Math.floor(progress.xp / 400 + 1) * 400 : 400} XP
             </small>
           </div>
           <div className="hud-coins">
@@ -430,17 +693,32 @@ export default function App() {
         <div className="hud-chapter">
           <span className="chapter-diamond">✦</span>
           <div>
-            <span>CHAPTER 00</span>
-            <strong>Monday at PixelByte</strong>
+            <span>
+              {save.checkout.completed.length === 9
+                ? 'THE JUNIOR DEVELOPER CHRONICLES'
+                : checkoutUnlocked(save)
+                  ? 'HASHMAP FOUNDATIONS'
+                  : 'CHAPTER 00'}
+            </span>
+            <strong>
+              {save.checkout.completed.length === 9
+                ? (nextSeason(save)?.episode.title ?? 'BentoCart · Release Day')
+                : checkoutUnlocked(save)
+                  ? 'The Checkout Incident'
+                  : 'Monday at PixelByte'}
+            </strong>
           </div>
         </div>
         <div className="hud-top-right">
           <div className="hud-clock game-frame">
             <GameIcon name="sun" size={24} />
             <div>
-              <strong>MON · DAY 01</strong>
+              <strong>
+                {seasonClock?.[0] ??
+                  (checkoutUnlocked(save) ? 'FRI · INCIDENT DAY' : 'MON · DAY 01')}
+              </strong>
               <span>
-                09:00 <i /> Spring
+                {seasonClock?.[1] ?? (checkoutUnlocked(save) ? '16:45' : '09:00')} <i /> Spring
               </span>
             </div>
           </div>
@@ -463,7 +741,11 @@ export default function App() {
             aria-expanded={!questCollapsed}
           >
             <span className="quest-emblem">!</span>
-            <span>{finished && save.claimed ? 'CHAPTER COMPLETE' : 'CURRENT QUEST'}</span>
+            <span>
+              {save.checkout.completed.length === 9 && !nextSeason(save)
+                ? 'SEASON COMPLETE'
+                : 'CURRENT QUEST'}
+            </span>
             <span>{questCollapsed ? '+' : '−'}</span>
           </button>
           <h1>{active.title}</h1>
@@ -474,14 +756,29 @@ export default function App() {
                 View objective <span>↗</span>
               </button>
               <div className="quest-pips">
-                {[
-                  save.metAlex,
-                  ...['java', 'filter', 'join'].map((m) => save.completed.includes(m as Mission)),
-                  save.claimed,
-                ].map((done, i) => (
+                {(save.checkout.completed.length === 9 && nextSeason(save)
+                  ? nextSeason(save)!.episode.missions.map((m) =>
+                      save.season.episodes[nextSeason(save)!.episode.id].completed.includes(m.id),
+                    )
+                  : checkoutUnlocked(save)
+                    ? CHECKOUT_MISSIONS.map((m) => save.checkout.completed.includes(m.id))
+                    : [
+                        save.metAlex,
+                        ...['java', 'filter', 'join'].map((m) =>
+                          save.completed.includes(m as Mission),
+                        ),
+                        save.claimed,
+                      ]
+                ).map((done, i) => (
                   <i key={i} className={done ? 'done' : ''} />
                 ))}
-                <span>{Number(save.metAlex) + save.completed.length + Number(save.claimed)}/5</span>
+                <span>
+                  {save.checkout.completed.length === 9 && nextSeason(save)
+                    ? `${save.season.episodes[nextSeason(save)!.episode.id].completed.length}/${nextSeason(save)!.episode.missions.length}`
+                    : checkoutUnlocked(save)
+                      ? `${save.checkout.completed.length}/9`
+                      : `${Number(save.metAlex) + save.completed.length + Number(save.claimed)}/5`}
+                </span>
               </div>
             </>
           )}
@@ -559,6 +856,10 @@ export default function App() {
                 <GameIcon name="bag" />
                 Your backpack<span>I</span>
               </button>
+              <button disabled={slotBusy} onClick={() => void returnToTitle()}>
+                <GameIcon name="save" />
+                Save & main menu<span>3 SLOTS</span>
+              </button>
               <div className="pause-divider" />
               <button onClick={() => void toggleFullScreen()}>
                 <GameIcon name="expand" />
@@ -573,7 +874,7 @@ export default function App() {
                 <span className="help-icon">?</span>Controls & saves<span>?</span>
               </button>
               {isDesktop && (
-                <button className="quit-button" onClick={() => void quitGame()}>
+                <button className="quit-button" disabled={slotBusy} onClick={() => void quitGame()}>
                   <GameIcon name="exit" />
                   Save & quit<span>↗</span>
                 </button>
@@ -582,14 +883,19 @@ export default function App() {
           </div>
           <div className="pause-footer">
             <span>
-              <i className="live-dot" /> Your progress is saved on this device
+              <i className="live-dot" /> Save slot {(library.activeSlot ?? 0) + 1} · Progress saves
+              automatically
             </span>
-            <span>v0.3.0 · PIXELBYTE STUDIOS</span>
+            <span>v0.6.0 · PIXELBYTE STUDIOS</span>
           </div>
         </Modal>
       )}
       {panel === 'quests' && (
-        <Modal title="One small win at a time." subtitle="QUEST LOG / CHAPTER 00" onClose={close}>
+        <Modal
+          title="One small win at a time."
+          subtitle="QUEST LOG / PIXELBYTE STORIES"
+          onClose={close}
+        >
           <div className="panel-content quest-log">
             <div className="quest-log-active">
               <span className="eyebrow">UP NEXT</span>
@@ -599,6 +905,60 @@ export default function App() {
                 Continue quest →
               </button>
             </div>
+            <h3>Season 1 · The Junior Developer Chronicles</h3>
+            <p>
+              Eight new adventures build toward BentoCart’s release. SQL and OOP also have
+              independent study paths.
+            </p>
+            {EPISODES.map((e) => (
+              <button
+                key={e.id}
+                className={`quest-log-row ${save.season.episodes[e.id].completed.length === e.missions.length ? 'done' : ''}`}
+                disabled={!seasonUnlocked(save, e.id)}
+                onClick={() => {
+                  setSeasonEpisode(e.id);
+                  setPanel('season');
+                }}
+              >
+                <span>{e.number.toString().padStart(2, '0')}</span>
+                <span>
+                  <strong>{e.title}</strong>
+                  <small>
+                    {e.concept} · {save.season.episodes[e.id].completed.length}/{e.missions.length}
+                  </small>
+                </span>
+                <span>{seasonUnlocked(save, e.id) ? 'OPEN' : 'LOCKED'}</span>
+              </button>
+            ))}
+            <h3>The Checkout Incident</h3>
+            <p>
+              {checkoutUnlocked(save)
+                ? 'Nine connected missions · Java, HashMap & interview practice'
+                : 'Finish your first day and place your desk gift to unlock this adventure.'}
+            </p>
+            {CHECKOUT_MISSIONS.map((m, i) => (
+              <button
+                key={m.id}
+                className={`quest-log-row checkout-log-row ${save.checkout.completed.includes(m.id) ? 'done' : ''}`}
+                disabled={checkoutStatus(save, m.id) === 'locked'}
+                onClick={() => {
+                  setCheckoutIndex(i);
+                  setPanel('checkout');
+                }}
+              >
+                <span>
+                  {save.checkout.completed.includes(m.id) ? '✓' : String(i + 1).padStart(2, '0')}
+                </span>
+                <span>
+                  <strong>{m.title}</strong>
+                  <small>
+                    {m.location} · {m.xp} XP
+                  </small>
+                </span>
+                <span>{checkoutStatus(save, m.id).toUpperCase()}</span>
+              </button>
+            ))}
+            <h3>Your first day</h3>
             {(
               [
                 ['Meet your mentor', 'A friendly face on your first day.', save.metAlex],
@@ -708,121 +1068,6 @@ export default function App() {
         </Modal>
       )}
 
-      {!save.onboarded && (
-        <Modal
-          title="Every developer starts somewhere."
-          subtitle="WELCOME TO PIXELBYTE STUDIOS"
-          variant="onboarding"
-          dismissible={false}
-          onClose={() => {}}
-          wide
-        >
-          <form
-            className="onboarding"
-            onSubmit={(e) => {
-              e.preventDefault();
-              update({ name: draftName.trim() || 'New developer', onboarded: true });
-              notify('Welcome aboard. Alex is looking forward to meeting you.');
-            }}
-          >
-            <div className="onboard-story">
-              <div className="employee-badge">
-                <span className="eyebrow">PIXELBYTE · EMPLOYEE BADGE</span>
-                <AvatarPreview avatar={save.avatar} size={112} />
-                <strong>{draftName.trim() || 'Your name here'}</strong>
-                <span>Developer Intern</span>
-                <div className="badge-barcode">▌▌▌▎▌▏▎▌▌▏▎▌▏▌▌▌▏▎▌</div>
-                <small>DAY ONE. POSSIBILITY ONE.</small>
-              </div>
-            </div>
-            <div className="onboard-fields">
-              <p>
-                A new job, a cozy little office, and a couple of mysteries to solve. First, let’s
-                make this story yours.
-              </p>
-              <label className="form-label">
-                What should we call you?
-                <input
-                  autoFocus
-                  value={draftName}
-                  onChange={(e) => setDraftName(e.target.value)}
-                  maxLength={24}
-                  placeholder="Your developer name"
-                  required
-                />
-              </label>
-              <fieldset>
-                <legend>Pick your hoodie</legend>
-                <div className="swatches">
-                  {['#8a82bc', '#789c89', '#cd927e', '#6f91ad', '#d4ad66'].map((color) => (
-                    <button
-                      type="button"
-                      key={color}
-                      style={{ background: color }}
-                      className={save.avatar.shirt === color ? 'chosen' : ''}
-                      aria-label={`Hoodie ${color}`}
-                      aria-pressed={save.avatar.shirt === color}
-                      onClick={() => update({ avatar: { ...save.avatar, shirt: color } })}
-                    >
-                      {save.avatar.shirt === color ? '✓' : ''}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-              <fieldset>
-                <legend>Skin tone</legend>
-                <div className="swatches skin-swatches">
-                  {['#f1c8a3', '#dca477', '#b8805c', '#8c5d46', '#634339'].map((color) => (
-                    <button
-                      type="button"
-                      key={color}
-                      style={{ background: color }}
-                      className={save.avatar.skin === color ? 'chosen' : ''}
-                      aria-label={`Skin tone ${color}`}
-                      aria-pressed={save.avatar.skin === color}
-                      onClick={() => update({ avatar: { ...save.avatar, skin: color } })}
-                    >
-                      {save.avatar.skin === color ? '✓' : ''}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-              <fieldset>
-                <legend>Hair, your way</legend>
-                <div className="segmented">
-                  {['short', 'bob', 'curly'].map((hair) => (
-                    <button
-                      type="button"
-                      key={hair}
-                      className={save.avatar.hair === hair ? 'chosen' : ''}
-                      onClick={() => update({ avatar: { ...save.avatar, hair } })}
-                    >
-                      {hair}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={save.avatar.glasses}
-                  onChange={(e) =>
-                    update({ avatar: { ...save.avatar, glasses: e.target.checked } })
-                  }
-                />{' '}
-                A pair of glasses
-              </label>
-              <button className="button button-primary onboard-submit" type="submit">
-                Clock in. Let’s begin. <span>→</span>
-              </button>
-              <small className="privacy-note">
-                No account. No AI solutions. Just you, figuring things out.
-              </small>
-            </div>
-          </form>
-        </Modal>
-      )}
-
       {dialogue && (
         <Modal
           title={dialogue.title}
@@ -839,7 +1084,11 @@ export default function App() {
                       ? { skin: '#d9a278', shirt: '#7897b8', hair: 'short', glasses: false }
                       : dialogue.speaker.startsWith('Maya')
                         ? { skin: '#b07b5d', shirt: '#c78d79', hair: 'curly', glasses: true }
-                        : save.avatar
+                        : dialogue.speaker.startsWith('Nora')
+                          ? { skin: '#ebbd92', shirt: '#9fa67e', hair: 'bob', glasses: false }
+                          : dialogue.speaker.startsWith('Eva')
+                            ? { skin: '#dca477', shirt: '#8a82bc', hair: 'bob', glasses: true }
+                            : save.avatar
                   }
                   size={73}
                   animation="talking"
@@ -886,6 +1135,84 @@ export default function App() {
             onComplete={complete}
             onNext={() => setPanel('join')}
             onClose={close}
+          />
+        </Modal>
+      )}
+      {panel === 'season' && (
+        <Modal
+          title="The Junior Developer Chronicles"
+          subtitle="SEASON 1 / BENTOCART RELEASE"
+          onClose={close}
+          wide
+          variant="workspace"
+        >
+          <SeasonArc
+            save={save}
+            update={update}
+            initialEpisode={seasonEpisode}
+            onComplete={(episode, id, independent) => {
+              const already = save.season.episodes[episode].completed.includes(id);
+              setSave((s) => completeSeason(s, episode, id, independent) as Save);
+              if (!already) {
+                setPanel(null);
+                chime();
+                setCelebration(performance.now() + 2500);
+                const m = EPISODES.find((e) => e.id === episode)!.missions.find(
+                  (m) => m.id === id,
+                )!;
+                notify(`+${m.xp} XP · ${m.title} delivered`);
+              } else if (independent) {
+                chime();
+                notify('Independent interview passed · badge earned');
+              }
+            }}
+            onCertify={(id) => {
+              setSave((s) => certify(s, id) as Save);
+              chime();
+              notify('Independent retention check passed · mastery certified');
+            }}
+          />
+        </Modal>
+      )}
+      {panel === 'checkout' && checkoutUnlocked(save) && (
+        <Modal
+          title="The Checkout Incident"
+          subtitle="BENTOCART / MISSION PIPELINE"
+          onClose={close}
+          wide
+          variant="workspace"
+        >
+          <CheckoutArc
+            save={save}
+            initialMission={checkoutIndex}
+            update={update}
+            onComplete={(id, independent) => {
+              const already = save.checkout.completed.includes(id);
+              setSave((s) => {
+                const next = completeCheckout(s, id) as Save;
+                if (id !== 'interview') return next;
+                return {
+                  ...next,
+                  checkout: {
+                    ...next.checkout,
+                    score: next.checkout.score ? { ...next.checkout.score, reasoning: 20 } : null,
+                    independent: next.checkout.independent || independent === true,
+                  },
+                };
+              });
+              if (!already) setPanel(null);
+              if (already && independent && !save.checkout.independent) {
+                chime();
+                notify('Achievement unlocked · HashMap Detective');
+              }
+              if (!already) {
+                chime();
+                setCelebration(performance.now() + 2500);
+                notify(
+                  `+${CHECKOUT_MISSIONS.find((m) => m.id === id)!.xp} XP · ${id === 'qa' ? 'QA Survivor' : id === 'brute' ? 'First Working Solution' : id === 'interview' && independent ? 'HashMap Detective' : 'Mission delivered'}`,
+                );
+              }
+            }}
           />
         </Modal>
       )}
@@ -959,11 +1286,56 @@ export default function App() {
                 </div>
               ))}
               <div className="mastery-note">
-                ✧ Mastery comes next: future chapters will add independent challenges. This first
-                day builds the foundation.
+                ✧ Finish your first day to unlock the Checkout Incident and its independent
+                interview.
               </div>
             </div>
             <div className="career-path">
+              <span className="eyebrow">HASHMAP · DEMONSTRATED PROGRESS</span>
+              {[
+                ['Discovered', save.checkout.completed.includes('lab')],
+                ['Practiced', save.checkout.completed.includes('optimize')],
+                ['Applied', save.checkout.completed.includes('qa')],
+                ['Interview Ready', save.checkout.independent],
+                ['Mastered · later independent check', save.season.mastery.checkout],
+              ].map(([title, achieved]) => (
+                <div key={String(title)} className={achieved ? 'current' : ''}>
+                  <span>{achieved ? '✓' : '◇'}</span>
+                  <strong>{title}</strong>
+                  <span>{achieved ? 'DEMONSTRATED' : 'TO PRACTICE'}</span>
+                </div>
+              ))}
+              <span className="eyebrow">SEASON 1 · DEMONSTRATED SKILLS</span>
+              {EPISODES.map((e) => {
+                const p = save.season.episodes[e.id];
+                return (
+                  <div key={e.id} className={p.completed.length ? 'current' : ''}>
+                    <span>{p.completed.length === e.missions.length ? '✓' : '◇'}</span>
+                    <div>
+                      <strong>{e.concept}</strong>
+                      <small>
+                        {p.completed.length}/{e.missions.length} missions ·{' '}
+                        {p.independent ? 'Interview ready' : 'Independent interview pending'} ·{' '}
+                        {save.season.mastery[e.id]
+                          ? 'Mastered'
+                          : retentionUnlocked(save, e.id)
+                            ? 'Retention check ready'
+                            : 'Retention pending'}
+                      </small>
+                    </div>
+                    <button
+                      className="button"
+                      disabled={!seasonUnlocked(save, e.id)}
+                      onClick={() => {
+                        setSeasonEpisode(e.id);
+                        setPanel('season');
+                      }}
+                    >
+                      Practice
+                    </button>
+                  </div>
+                );
+              })}
               <span className="eyebrow">THE BIGGER ADVENTURE</span>
               {CHAPTERS.map(([number, title, desc], i) => (
                 <div className={i === 0 ? 'current' : ''} key={number}>
@@ -987,6 +1359,32 @@ export default function App() {
                 ? 'Your first day deserves a small reminder. Choose a gift from the team and it’ll appear at your workstation. Switch whenever you like.'
                 : 'Your backpack is ready for its first story. Finish both tickets and visit Alex to unlock a gift from the team.'}
             </p>
+            <h3>Season 1 collection</h3>
+            {EPISODES.filter(
+              (e) => save.season.episodes[e.id].completed.length === e.missions.length,
+            ).map((e) => (
+              <div className="achievement earned" key={e.id}>
+                <span>✧</span>
+                <div>
+                  <strong>{e.reward}</strong>
+                  <small>
+                    {e.room} unlocked ·{' '}
+                    {save.season.episodes[e.id].independent
+                      ? e.badge + ' badge'
+                      : 'Practice interview complete'}
+                  </small>
+                </div>
+                <button
+                  className="button"
+                  onClick={() => {
+                    setSeasonEpisode(e.id);
+                    setPanel('season');
+                  }}
+                >
+                  Visit
+                </button>
+              </div>
+            ))}
             <div className={`achievement ${save.claimed ? 'earned' : ''}`}>
               <span>✧</span>
               <div>
@@ -999,6 +1397,38 @@ export default function App() {
               </div>
               <span>{save.claimed ? '✓' : '◇'}</span>
             </div>
+            {[
+              [
+                'First Working Solution',
+                save.checkout.completed.includes('brute'),
+                'Built a correct voucher matcher.',
+              ],
+              [
+                'QA Survivor',
+                save.checkout.completed.includes('qa'),
+                'Predicted edge cases and checked two extra tests.',
+              ],
+              [
+                'HashMap Detective',
+                save.checkout.independent,
+                'Passed the transaction interview without hints.',
+              ],
+            ].map(([title, earned, description]) => (
+              <div className={`achievement ${earned ? 'earned' : ''}`} key={String(title)}>
+                <span>✧</span>
+                <div>
+                  <strong>{title}</strong>
+                  <small>{description}</small>
+                </div>
+                <span>{earned ? '✓' : '◇'}</span>
+              </div>
+            ))}
+            {save.checkout.completed.includes('interview') && (
+              <p className="inventory-note">
+                ✧ Your BentoCart desk plaque is now on your workstation. It celebrates the checkout
+                delivery.
+              </p>
+            )}
             <div className="decoration-grid">
               {[
                 ['plant', '🪴', 'A little green', 'Meet your new desk fern.'],
@@ -1012,7 +1442,11 @@ export default function App() {
                   onClick={() => {
                     update({ decoration: id as Save['decoration'] });
                     chime();
-                    notify(`${title} · Placed at your workstation.`);
+                    notify(
+                      save.decoration
+                        ? `${title} · Placed at your workstation.`
+                        : 'New message · Nora: BentoCart needs our help. Meet me in the office.',
+                    );
                   }}
                 >
                   <span className="decoration-icon">{icon}</span>
@@ -1061,9 +1495,25 @@ export default function App() {
                 : 'Java is compiled and tested in disposable, restricted Docker containers.'}{' '}
               SQL uses a real local SQLite database.
             </p>
+            <h3>The Checkout Incident</h3>
+            <p>
+              Finish your first day and place your gift to meet Nora. Nine connected missions cover
+              arrays, HashMap, optimization, QA, and an independent interview. The checkout editor
+              uses a bounded Java practice interpreter with for loops, if/else, arrays, and map
+              operations; its supported syntax is shown beside the editor.
+            </p>
+            <h3>Season 1 · The Junior Developer Chronicles</h3>
+            <p>
+              After Checkout, continue through Two Pointers, Sliding Window, Stacks, Binary Search,
+              Linked Lists, Recursion, SQL JOINs and OOP. Press Q for the episode board. SQL and OOP
+              have independent study prerequisites. Season Java runs through the bundled restricted
+              compiler; every editor documents its contract. Hints allow story completion in
+              Practice Mode. Fresh independent interviews earn badges, and later independent
+              challenges certify retention.
+            </p>
             <h3>Your save</h3>
             <p>
-              Progress, code, notes, avatar, and decorations stay{' '}
+              Each slot keeps its own progress, code, notes, avatar, and decorations{' '}
               {isDesktop ? 'on this Mac' : 'in this browser'}. Export a backup to take them with
               you.
             </p>
@@ -1092,30 +1542,43 @@ export default function App() {
                 </label>
               )}
             </div>
+            {!isDesktop && (
+              <details>
+                <summary>Paste an exported save</summary>
+                <p>You can restore a JSON backup directly if the file picker is unavailable.</p>
+                <textarea
+                  aria-label="Exported save JSON"
+                  value={pastedSave}
+                  maxLength={524288}
+                  onChange={(e) => setPastedSave(e.target.value)}
+                  style={{ width: '100%', minHeight: 100 }}
+                />
+                <button
+                  className="button"
+                  disabled={!pastedSave.trim()}
+                  onClick={() =>
+                    void importSave(
+                      new File([pastedSave], 'devquest-save.json', { type: 'application/json' }),
+                    )
+                  }
+                >
+                  Restore pasted backup
+                </button>
+              </details>
+            )}
             <div className="restart-section">
-              <button className="text-button" onClick={() => setConfirmRestart(!confirmRestart)}>
-                Start a fresh first day
+              <h3>Three independent adventures</h3>
+              <p>
+                Save & return to the main menu to load another character, start a new game, or reset
+                one slot. Resetting one slot leaves the other two untouched.
+              </p>
+              <button
+                className="button button-secondary"
+                disabled={slotBusy}
+                onClick={() => void returnToTitle()}
+              >
+                Save & open main menu
               </button>
-              {confirmRestart && (
-                <div>
-                  <p>
-                    This replaces your local progress. Export a backup first if you want to keep it.
-                  </p>
-                  <button
-                    className="button button-danger"
-                    onClick={() => {
-                      setSave(freshState() as Save);
-                      setSession((s) => s + 1);
-                      setDraftName('');
-                      setPanel(null);
-                      setConfirmRestart(false);
-                      window.location.hash = 'office';
-                    }}
-                  >
-                    Reset local progress
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         </Modal>

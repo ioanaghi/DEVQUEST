@@ -1,7 +1,5 @@
-import { isDesktop } from '../lib/platform';
-
-// One display-linked frame drives every canvas and tween. Native WebKit can
-// suspend RAF when a window is inactive, so a watchdog keeps it alive then.
+// One display-linked frame drives every canvas and tween. Safari and native
+// WebKit may suspend RAF in inactive windows; the watchdog also completes UI transitions.
 const callbacks = new Map<number, FrameRequestCallback>();
 let nextId = 0,
   frame = 0,
@@ -20,8 +18,7 @@ export function scheduleFrame(callback: FrameRequestCallback): number {
   callbacks.set(id, callback);
   if (!frame) {
     frame = requestAnimationFrame(flush);
-    if (isDesktop)
-      watchdog = window.setTimeout(() => flush(performance.now()), document.hidden ? 100 : 34);
+    watchdog = window.setTimeout(() => flush(performance.now()), document.hidden ? 100 : 34);
   }
   return id;
 }

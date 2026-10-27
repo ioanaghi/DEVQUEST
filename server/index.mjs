@@ -1,3 +1,5 @@
+import { judgeSeason } from './season/index.mjs';
+import { judgePair } from './pair-java.mjs';
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -23,7 +25,7 @@ async function body(req) {
   let buffer = '';
   for await (const chunk of req) {
     buffer += chunk;
-    if (Buffer.byteLength(buffer) > 12000) throw new Error('Request too large.');
+    if (Buffer.byteLength(buffer) > 20000) throw new Error('Request too large.');
   }
   try {
     return JSON.parse(buffer);
@@ -56,6 +58,8 @@ const server = createServer(async (req, res) => {
     running++;
     try {
       const input = await body(req);
+      if (url.pathname === '/api/season') return json(res, 200, await judgeSeason(input));
+      if (url.pathname === '/api/pair') return json(res, 200, judgePair(input));
       if (url.pathname === '/api/java')
         return json(
           res,

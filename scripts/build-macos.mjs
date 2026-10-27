@@ -1,5 +1,6 @@
+import { javaHome } from '../server/season/java.mjs';
 import { execFileSync } from 'node:child_process';
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile, open } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -67,6 +68,43 @@ for (const name of ['dist', 'server'])
     filter: (path) => !path.endsWith('Dockerfile') && !basename(path).startsWith('._'),
   });
 await cp(join(root, 'package.json'), join(contents, 'Resources', 'game', 'package.json'));
+await mkdir(join(contents, 'Resources', 'game', 'src', 'lib'), { recursive: true });
+await cp(
+  join(root, 'src', 'lib', 'season-content.mjs'),
+  join(contents, 'Resources', 'game', 'src', 'lib', 'season-content.mjs'),
+);
+
+// Embed a self-contained compiler/runtime so new curriculum types run offline.
+// jlink retains the selected JDK distribution's legal notices.
+const jdk = await javaHome();
+const javaRuntime = join(contents, 'Resources', 'game', 'java-runtime');
+run(join(jdk, 'bin', 'jlink'), [
+  '--add-modules',
+  'java.base,java.compiler,jdk.compiler,jdk.zipfs',
+  '--strip-debug',
+  '--no-header-files',
+  '--no-man-pages',
+  '--compress=2',
+  '--output',
+  javaRuntime,
+]);
+// Sign every native JVM component before signing the enclosing app.
+async function signNative(directory) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) await signNative(path);
+    else if (entry.isFile()) {
+      const handle = await open(path, 'r');
+      const header = Buffer.alloc(4);
+      await handle.read(header, 0, 4, 0);
+      await handle.close();
+      if ([0xfeedfacf, 0xcffaedfe, 0xcafebabe].includes(header.readUInt32BE()))
+        run('codesign', ['--force', '--sign', '-', path]);
+    }
+  }
+}
+await signNative(javaRuntime);
+
 if (await stat(join(root, 'LICENSE')).catch(() => null))
   await cp(join(root, 'LICENSE'), join(contents, 'Resources', 'LICENSE.txt'));
 const arch = execFileSync('lipo', ['-archs', binary], { encoding: 'utf8' }).trim();
@@ -85,6 +123,7 @@ run('xcrun', [
   '-framework',
   'WebKit',
   join(root, 'desktop', 'DEVQUEST.swift'),
+  join(root, 'desktop', 'SaveLibraryStore.swift'),
   '-o',
   join(contents, 'MacOS', 'DEVQUEST'),
 ]);
@@ -154,7 +193,7 @@ const checksum = createHash('sha256')
 await writeFile(zip + '.sha256', `${checksum}  ${zip.split('/').at(-1)}\n`);
 const releaseApp = join(release, 'DEVQUEST.app');
 await rm(releaseApp, { recursive: true, force: true });
-await cp(app, releaseApp, { recursive: true });
+await cp(app, releaseApp, { recursive: true, verbatimSymlinks: true });
 await removeSidecars(releaseApp);
 run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', releaseApp]);
 await rm(staging, { recursive: true, force: true });

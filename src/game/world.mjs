@@ -1,19 +1,34 @@
 export const MAP = { width: 640, height: 400, tile: 16 };
 export const OBJECTS = [
+  { id: 'max', label: 'Max · warehouse engineer', x: 95, y: 185, radius: 30 },
+  { id: 'theo', label: 'Theo · site reliability engineer', x: 360, y: 225, radius: 28 },
+  { id: 'lia', label: 'Lia · frontend developer', x: 105, y: 298, radius: 28 },
+  { id: 'iris', label: 'Iris · backend engineer', x: 510, y: 153, radius: 28 },
+  { id: 'victor', label: 'Victor · software architect', x: 350, y: 120, radius: 28 },
   { id: 'alex', label: 'Alex · your mentor', x: 150, y: 137, radius: 40 },
   { id: 'desk', label: 'Your workstation', x: 270, y: 183, radius: 43 },
   { id: 'sql', label: 'SQL investigation terminal', x: 557, y: 153, radius: 42 },
   { id: 'board', label: 'Training whiteboard', x: 469, y: 100, radius: 38 },
   { id: 'coffee', label: 'A very important coffee', x: 566, y: 291, radius: 40 },
   { id: 'tickets', label: 'Team noticeboard', x: 331, y: 70, radius: 38 },
-  { id: 'maya', label: 'Maya · product designer', x: 451, y: 332, radius: 32 },
+  { id: 'nora', label: 'Nora · product manager', x: 168, y: 267, radius: 32 },
+  { id: 'eva', label: 'Eva · interview table', x: 346, y: 302, radius: 30 },
+  { id: 'maya', label: 'Maya · QA engineer', x: 451, y: 332, radius: 32 },
 ];
 // Collision footprints are aligned with the final illustrated environment.
 export const SOLIDS = [
+  ...[
+    { x: 95, y: 185 },
+    { x: 360, y: 225 },
+    { x: 105, y: 298 },
+    { x: 510, y: 153 },
+    { x: 350, y: 120 },
+  ].map((p) => ({ x: p.x - 6, y: p.y - 8, w: 12, h: 9 })),
   // Colleagues occupy a small footprint, so saved/player sprites cannot overlap them.
   { x: 143, y: 129, w: 14, h: 10 },
   { x: 444, y: 324, w: 14, h: 10 },
   { x: 162, y: 259, w: 12, h: 10 },
+  { x: 340, y: 294, w: 12, h: 10 },
   { x: 389, y: 35, w: 12, h: 141 },
   { x: 389, y: 216, w: 12, h: 164 },
   { x: 401, y: 232, w: 77, h: 11 },
